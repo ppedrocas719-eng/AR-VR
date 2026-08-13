@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MR Browser Pro - 2 Mãos & Espacial</title>
+    <title>MR Browser Spatial OS</title>
     
     <!-- MediaPipe Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -12,9 +12,9 @@
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: white; }
 
-        /* Câmera Traseira (Visão Real) */
+        /* Câmera Traseira (Passthrough Real) */
         #webcam {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -30,10 +30,604 @@
             pointer-events: none;
         }
 
-        /* Janela Flutuante Espacial */
+        /* Janela Flutuante Estilo VisionOS / Quest 3 */
         #floating-window {
             position: absolute;
-            /* Posição inicial fixa no espaço virtual */
+            top: 15vh; left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            height: 520px;
+            
+            background: rgba(15, 15, 25, 0.75);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 28px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.2);
+            
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            touch-action: none;
+            transition: box-shadow 0.2s;
+        }
+        #floating-window.dragging {
+            box-shadow: 0 40px 80px rgba(0,0,0,0.9), 0 0 30px rgba(56, 189, 248, 0.4);
+            border-color: rgba(56, 189, 248, 0.6);
+        }
+
+        /* Barra Superior (Arrastar no Ar) */
+        .window-header {
+            height: 44px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            cursor: grab;
+        }
+        .window-header:active { cursor: grabbing; }
+        .window-title { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.5px; opacity: 0.8; }
+        .drag-handle-bar { width: 36px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 4px; }
+
+        /* Conteúdo Dinâmico da Janela */
+        .window-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Home View (Menu Principal) */
+        .view-section {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: opacity 0.2s ease;
+        }
+        .view-section.hidden { opacity: 0; pointer-events: none; display: none; }
+
+        .home-content h1 { font-size: 1.3rem; margin-bottom: 5px; font-weight: 600; }
+        .home-content p { font-size: 0.8rem; opacity: 0.7; margin-bottom: 15px; line-height: 1.3; }
+
+        /* Barra de Busca Principal */
+        .search-box {
+            display: flex;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 10px 14px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .search-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-left: 8px;
+        }
+        .search-box input::placeholder { color: rgba(255,255,255,0.4); }
+
+        /* Dock de Apps */
+        .app-dock {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .app-icon {
+            flex: 1;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.15s, border-color 0.15s;
+        }
+        .app-icon span { font-size: 0.65rem; margin-top: 5px; font-weight: 500; opacity: 0.9; }
+        .app-icon.hovered {
+            background: rgba(56, 189, 248, 0.25);
+            border-color: #38bdf8;
+            transform: scale(1.05);
+        }
+
+        /* Visualizador de Conteúdo Interno (Navegador Embutido) */
+        .browser-view {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            color: #111;
+        }
+        .browser-header {
+            background: #f1f3f4;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #dadce0;
+        }
+        .back-btn {
+            background: #e8eaed;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .browser-url {
+            font-size: 0.75rem;
+            color: #5f6368;
+            background: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            flex: 1;
+            border: 1px solid #dfe1e5;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .browser-content {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+
+        /* Cursor da Mão Suavizado */
+        #hand-cursor {
+            position: absolute;
+            width: 22px; height: 22px;
+            background: rgba(56, 189, 248, 0.7);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 12px #38bdf8;
+            transform: translate(-50%, -50%);
+        }
+        #hand-cursor.clicking {
+            transform: translate(-50%, -50%) scale(0.7);
+            background: rgba(74, 222, 128, 0.9);
+            border-color: #4ade80;
+        }
+        #hand-cursor.grabbing {
+            transform: translate(-50%, -50%) scale(1.2);
+            background: rgba(251, 191, 36, 0.9);
+            border-color: #fbbf24;
+            box-shadow: 0 0 20px #fbbf24;
+        }
+
+        /* Barra de Status */
+        #status {
+            position: absolute; bottom: 12px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            z-index: 3;
+            color: #00ff66;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="output_canvas"></canvas>
+    <div id="hand-cursor"></div>
+
+    <!-- Janela Flutuante Espacial -->
+    <div id="floating-window">
+        <div class="window-header" id="header-bar">
+            <span class="window-title">MR SPATIAL OS</span>
+            <div class="drag-handle-bar"></div>
+        </div>
+        <div class="window-body">
+            
+            <!-- Tela Inicial (Home) -->
+            <div id="home-view" class="view-section">
+                <div class="home-content">
+                    <h1>Painel Flutuante</h1>
+                    <p>Faça pinça na barra superior para arrastar o painel pelo ar, ou nos apps abaixo.</p>
+                    
+                    <div class="search-box">
+                        <span>🔍</span>
+                        <input type="text" id="search-input" placeholder="Pesquisar no Google...">
+                    </div>
+                </div>
+
+                <div class="app-dock">
+                    <div class="app-icon interactive" onclick="loadApp('https://www.google.com/search?igu=1', 'Google')">
+                        <span style="font-size: 1.4rem;">🌐</span>
+                        <span>Google</span>
+                    </div>
+                    <div class="app-icon interactive" onclick="loadApp('https://www.youtube.com', 'YouTube')">
+                        <span style="font-size: 1.4rem;">📺</span>
+                        <span>YouTube</span>
+                    </div>
+                    <div class="app-icon interactive" onclick="loadApp('https://www.tiktok.com', 'TikTok')">
+                        <span style="font-size: 1.4rem;">🎵</span>
+                        <span>TikTok</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navegador Interno (Abre DENTRO da janela flutuante) -->
+            <div id="browser-view" class="view-section hidden" style="padding: 0;">
+                <div class="browser-header">
+                    <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                    <div class="browser-url" id="url-display">Carregando...</div>
+                </div>
+                <!-- Iframe interno para carregar o site dentro da janela -->
+                <iframe id="app-iframe" class="browser-content" src=""></iframe>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="status">Iniciando motor espacial...</div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const cursor = document.getElementById('hand-cursor');
+        const statusDiv = document.getElementById('status');
+        const floatWindow = document.getElementById('floating-window');
+        const headerBar = document.getElementById('header-bar');
+        const searchInput = document.getElementById('search-input');
+
+        // Views
+        const homeView = document.getElementById('home-view');
+        const browserView = document.getElementById('browser-view');
+        const appIframe = document.getElementById('app-iframe');
+        const urlDisplay = document.getElementById('url-display');
+
+        // Funções do Navegador Interno
+        function loadApp(url, name) {
+            let targetUrl = url;
+            if (name === 'Google') {
+                const query = searchInput.value.trim();
+                if (query) {
+                    targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&igu=1`;
+                }
+            }
+            appIframe.src = targetUrl;
+            urlDisplay.innerText = name + " - " + targetUrl;
+            homeView.classList.add('hidden');
+            browserView.classList.remove('hidden');
+        }
+
+        function goHome() {
+            appIframe.src = '';
+            browserView.classList.add('hidden');
+            homeView.classList.remove('hidden');
+        }
+
+        // Arraste manual por toque na barra superior
+        let isTouchDragging = false;
+        let tStartX, tStartY, winInitX, winInitY;
+
+        headerBar.addEventListener('touchstart', (e) => {
+            isTouchDragging = true;
+            const touch = e.touches[0];
+            tStartX = touch.clientX;
+            tStartY = touch.clientY;
+            const rect = floatWindow.getBoundingClientRect();
+            winInitX = rect.left;
+            winInitY = rect.top;
+            e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if(!isTouchDragging) return;
+            const touch = e.touches[0];
+            floatWindow.style.left = (winInitX + (touch.clientX - tStartX)) + 'px';
+            floatWindow.style.top = (winInitY + (touch.clientY - tStartY)) + 'px';
+            floatWindow.style.transform = 'none';
+        });
+        window.addEventListener('touchend', () => { isTouchDragging = false; });
+
+        // Variáveis de Suavização do Cursor (Elimina delay e jitter)
+        let rawCursorX = window.innerWidth / 2;
+        let rawCursorY = window.innerHeight / 2;
+        let smoothCursorX = rawCursorX;
+        let smoothCursorY = rawCursorY;
+        const smoothing = 0.3; // Fator de suavização (quanto menor, mais suave, ajuste ideal para zerar trepidação)
+
+        let isHandDraggingWindow = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // --- MediaPipe Hands ---
+        function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusDiv.innerText = `${results.multiHandLandmarks.length} Mão(s) Rastreada(s) 🟢`;
+                statusDiv.style.color = "#00ff66";
+                cursor.style.display = 'block';
+
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255,255,255,0.6)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
+                }
+
+                // Pega a primeira mão
+                const primaryHand = results.multiHandLandmarks[0];
+                const indexTip = primaryHand[8];
+                const thumbTip = primaryHand[4];
+
+                // Coordenadas brutas na tela
+                const targetX = indexTip.x * window.innerWidth;
+                const targetY = indexTip.y * window.innerHeight;
+
+                // Suavização EMA (Exponential Moving Average) para zerar o delay/tremor
+                smoothCursorX += (targetX - smoothCursorX) * smoothing;
+                smoothCursorY += (targetY - smoothCursorY) * smoothing;
+
+                cursor.style.left = `${smoothCursorX}px`;
+                cursor.style.top = `${smoothCursorY}px`;
+
+                // Distância da pinça
+                const pinchDistance = Math.hypot(
+                    (thumbTip.x - indexTip.x) * window.innerWidth,
+                    (thumbTip.y - indexTip.y) * window.innerHeight
+                );
+
+                const PINCH_LIMIT = 32;
+                const headerRect = headerBar.getBoundingClientRect();
+                const isOverHeader = (
+                    smoothCursorX >= headerRect.left && smoothCursorX <= headerRect.right &&
+                    smoothCursorY >= headerRect.top && smoothCursorY <= headerRect.bottom
+                );
+
+                if (pinchDistance < PINCH_LIMIT) {
+                    if (isOverHeader || isHandDraggingWindow) {
+                        // Arrastar janela com pinça no ar
+                        if (!isHandDraggingWindow) {
+                            isHandDraggingWindow = true;
+                            const winRect = floatWindow.getBoundingClientRect();
+                            dragOffsetX = smoothCursorX - winRect.left;
+                            dragOffsetY = smoothCursorY - winRect.top;
+                            floatWindow.classList.add('dragging');
+                        }
+                        cursor.classList.add('grabbing');
+                        floatWindow.style.left = (smoothCursorX - dragOffsetX) + 'px';
+                        floatWindow.style.top = (smoothCursorY - dragOffsetY) + 'px';
+                        floatWindow.style.transform = 'none';
+                    } else {
+                        // Clique em elementos interativos
+                        cursor.classList.add('clicking');
+                        isHandDraggingWindow = false;
+
+                        const elementUnder = document.elementFromPoint(smoothCursorX, smoothCursorY);
+                        if (elementUnder) {
+                            const clickable = elementUnder.closest('.app-icon, .back-btn');
+                            if (clickable) {
+                                clickable.classList.add('hovered');
+                                setTimeout(() => clickable.click(), 120);
+                            }
+                        }
+                    }
+                } else {
+                    isHandDraggingWindow = false;
+                    floatWindow.classList.remove('dragging');
+                    cursor.classList.remove('clicking');
+                    cursor.classList.remove('grabbing');
+                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+                }
+
+            } else {
+                statusDiv.innerText = "Aguardando mãos... ✋";
+                statusDiv.style.color = "#ffaa00";
+                cursor.style.display = 'none';
+                isHandDraggingWindow = false;
+                floatWindow.classList.remove('dragging');
+            }
+
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0, // Máxima velocidade, zero delay
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720,
+            facingMode: 'environment'
+        });
+        
+        camera.start().catch(err => {
+            statusDiv.innerText = "Erro ao acessar a câmera!";
+            console.error(err);
+        });
+    </script>
+</body>
+</html>
+            e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if(!isTouchDragging) return;
+            const touch = e.touches[0];
+            floatWindow.style.left = (winInitX + (touch.clientX - tStartX)) + 'px';
+            floatWindow.style.top = (winInitY + (touch.clientY - tStartY)) + 'px';
+            floatWindow.style.transform = 'none';
+        });
+        window.addEventListener('touchend', () => { isTouchDragging = false; });
+
+        // Variáveis de Suavização do Cursor (Elimina delay e jitter)
+        let rawCursorX = window.innerWidth / 2;
+        let rawCursorY = window.innerHeight / 2;
+        let smoothCursorX = rawCursorX;
+        let smoothCursorY = rawCursorY;
+        const smoothing = 0.3; // Fator de suavização (quanto menor, mais suave, ajuste ideal para zerar trepidação)
+
+        let isHandDraggingWindow = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // --- MediaPipe Hands ---
+        function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusDiv.innerText = `${results.multiHandLandmarks.length} Mão(s) Rastreada(s) 🟢`;
+                statusDiv.style.color = "#00ff66";
+                cursor.style.display = 'block';
+
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255,255,255,0.6)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
+                }
+
+                // Pega a primeira mão
+                const primaryHand = results.multiHandLandmarks[0];
+                const indexTip = primaryHand[8];
+                const thumbTip = primaryHand[4];
+
+                // Coordenadas brutas na tela
+                const targetX = indexTip.x * window.innerWidth;
+                const targetY = indexTip.y * window.innerHeight;
+
+                // Suavização EMA (Exponential Moving Average) para zerar o delay/tremor
+                smoothCursorX += (targetX - smoothCursorX) * smoothing;
+                smoothCursorY += (targetY - smoothCursorY) * smoothing;
+
+                cursor.style.left = `${smoothCursorX}px`;
+                cursor.style.top = `${smoothCursorY}px`;
+
+                // Distância da pinça
+                const pinchDistance = Math.hypot(
+                    (thumbTip.x - indexTip.x) * window.innerWidth,
+                    (thumbTip.y - indexTip.y) * window.innerHeight
+                );
+
+                const PINCH_LIMIT = 32;
+                const headerRect = headerBar.getBoundingClientRect();
+                const isOverHeader = (
+                    smoothCursorX >= headerRect.left && smoothCursorX <= headerRect.right &&
+                    smoothCursorY >= headerRect.top && smoothCursorY <= headerRect.bottom
+                );
+
+                if (pinchDistance < PINCH_LIMIT) {
+                    if (isOverHeader || isHandDraggingWindow) {
+                        // Arrastar janela com pinça no ar
+                        if (!isHandDraggingWindow) {
+                            isHandDraggingWindow = true;
+                            const winRect = floatWindow.getBoundingClientRect();
+                            dragOffsetX = smoothCursorX - winRect.left;
+                            dragOffsetY = smoothCursorY - winRect.top;
+                            floatWindow.classList.add('dragging');
+                        }
+                        cursor.classList.add('grabbing');
+                        floatWindow.style.left = (smoothCursorX - dragOffsetX) + 'px';
+                        floatWindow.style.top = (smoothCursorY - dragOffsetY) + 'px';
+                        floatWindow.style.transform = 'none';
+                    } else {
+                        // Clique em elementos interativos
+                        cursor.classList.add('clicking');
+                        isHandDraggingWindow = false;
+
+                        const elementUnder = document.elementFromPoint(smoothCursorX, smoothCursorY);
+                        if (elementUnder) {
+                            const clickable = elementUnder.closest('.app-icon, .back-btn');
+                            if (clickable) {
+                                clickable.classList.add('hovered');
+                                setTimeout(() => clickable.click(), 120);
+                            }
+                        }
+                    }
+                } else {
+                    isHandDraggingWindow = false;
+                    floatWindow.classList.remove('dragging');
+                    cursor.classList.remove('clicking');
+                    cursor.classList.remove('grabbing');
+                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+                }
+
+            } else {
+                statusDiv.innerText = "Aguardando mãos... ✋";
+                statusDiv.style.color = "#ffaa00";
+                cursor.style.display = 'none';
+                isHandDraggingWindow = false;
+                floatWindow.classList.remove('dragging');
+            }
+
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0, // Máxima velocidade, zero delay
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720,
+            facingMode: 'environment'
+        });
+        
+        camera.start().catch(err => {
+            statusDiv.innerText = "Erro ao acessar a câmera!";
+            console.error(err);
+        });
+    </script>
+</body>
+</html>
             top: 20%; left: 50%;
             transform: translateX(-50%);
             width: 90%;
