@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MR Browser Spatial OS</title>
+    <title>MR Spatial OS - Zero Delay</title>
     
-    <!-- MediaPipe Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -14,7 +13,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: white; }
 
-        /* Câmera Traseira (Passthrough Real) */
+        /* Câmera Traseira */
         #webcam {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -30,10 +29,499 @@
             pointer-events: none;
         }
 
-        /* Janela Flutuante Estilo VisionOS / Quest 3 */
+        /* Janela Flutuante Estilo VR (VisionOS / Quest 3) */
         #floating-window {
             position: absolute;
-            top: 15vh; left: 50%;
+            top: 12vh; left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 410px;
+            height: 540px;
+            
+            background: rgba(12, 12, 20, 0.82);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 30px;
+            box-shadow: 0 35px 70px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.25);
+            
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            touch-action: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        #floating-window.dragging {
+            box-shadow: 0 45px 90px rgba(0,0,0,0.95), 0 0 35px rgba(56, 189, 248, 0.5);
+            border-color: rgba(56, 189, 248, 0.7);
+        }
+
+        /* Barra Superior (Área para agarrar e mover no ar) */
+        .window-header {
+            height: 46px;
+            background: rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            cursor: grab;
+        }
+        .window-header:active { cursor: grabbing; }
+        .window-title { font-size: 0.8rem; font-weight: 600; letter-spacing: 1px; opacity: 0.85; }
+        .drag-handle-bar { width: 40px; height: 4px; background: rgba(255,255,255,0.4); border-radius: 4px; }
+
+        /* Corpo da Janela */
+        .window-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Ecrãs (Home vs Apps Internos) */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.97); display: none; }
+
+        .home-content h1 { font-size: 1.35rem; margin-bottom: 6px; font-weight: 600; }
+        .home-content p { font-size: 0.82rem; opacity: 0.75; margin-bottom: 18px; line-height: 1.4; }
+
+        /* Barra de Pesquisa */
+        .search-box {
+            display: flex;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 18px;
+            padding: 10px 14px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .search-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 0.92rem;
+            width: 100%;
+            margin-left: 8px;
+        }
+        .search-box input::placeholder { color: rgba(255,255,255,0.45); }
+
+        /* Dock de Apps */
+        .app-dock {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .app-icon {
+            flex: 1;
+            height: 74px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.15s, border-color 0.15s;
+        }
+        .app-icon span { font-size: 0.68rem; margin-top: 5px; font-weight: 500; opacity: 0.9; }
+        .app-icon.hovered {
+            background: rgba(56, 189, 248, 0.3);
+            border-color: #38bdf8;
+            transform: scale(1.06);
+        }
+
+        /* Aplicações Nativas Internas (Para não sair do app) */
+        .internal-app-header {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .back-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .internal-app-title { font-size: 0.85rem; font-weight: 600; opacity: 0.9; }
+        
+        .internal-app-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Estilo dos cards internos (Simuladores de Apps) */
+        .feed-card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .feed-card h3 { font-size: 0.9rem; color: #38bdf8; }
+        .feed-card p { font-size: 0.78rem; opacity: 0.7; }
+        .action-btn {
+            background: #38bdf8;
+            color: #000;
+            border: none;
+            padding: 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        /* Cursor da Mão com Zero Delay */
+        #hand-cursor {
+            position: absolute;
+            width: 20px; height: 20px;
+            background: rgba(56, 189, 248, 0.75);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 15px #38bdf8;
+            transform: translate(-50%, -50%);
+        }
+        #hand-cursor.clicking {
+            transform: translate(-50%, -50%) scale(0.7);
+            background: rgba(74, 222, 128, 0.95);
+            border-color: #4ade80;
+        }
+        #hand-cursor.grabbing {
+            transform: translate(-50%, -50%) scale(1.25);
+            background: rgba(251, 191, 36, 0.95);
+            border-color: #fbbf24;
+            box-shadow: 0 0 22px #fbbf24;
+        }
+
+        /* Status */
+        #status {
+            position: absolute; bottom: 12px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            z-index: 3;
+            color: #00ff66;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="output_canvas"></canvas>
+    <div id="hand-cursor"></div>
+
+    <div id="floating-window">
+        <div class="window-header" id="header-bar">
+            <span class="window-title">MR SPATIAL OS</span>
+            <div class="drag-handle-bar"></div>
+        </div>
+        <div class="window-body">
+            
+            <div id="home-screen" class="screen">
+                <div class="home-content">
+                    <h1>Painel Espacial</h1>
+                    <p>Usa pinça na barra superior para mover o painel no ar, ou clica nos apps abaixo.</p>
+                    
+                    <div class="search-box">
+                        <span>🔍</span>
+                        <input type="text" id="search-input" placeholder="Pesquisar no Google espacial...">
+                    </div>
+                </div>
+
+                <div class="app-dock">
+                    <div class="app-icon interactive" onclick="openApp('google')">
+                        <span style="font-size: 1.4rem;">🌐</span>
+                        <span>Google</span>
+                    </div>
+                    <div class="app-icon interactive" onclick="openApp('youtube')">
+                        <span style="font-size: 1.4rem;">📺</span>
+                        <span>YouTube</span>
+                    </div>
+                    <div class="app-icon interactive" onclick="openApp('tiktok')">
+                        <span style="font-size: 1.4rem;">🎵</span>
+                        <span>TikTok</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="google-screen" class="screen hidden" style="padding: 0;">
+                <div class="internal-app-header">
+                    <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                    <span class="internal-app-title">Google Search</span>
+                </div>
+                <div class="internal-app-content">
+                    <div class="feed-card">
+                        <h3>Resultados da Pesquisa</h3>
+                        <p id="google-query-text">A carregar resultados para a tua busca...</p>
+                        <button class="action-btn interactive" onclick="window.open('https://www.google.com', '_blank')">Abrir no Browser Externo</button>
+                    </div>
+                    <div class="feed-card">
+                        <h3>Atalhos Rápidos</h3>
+                        <p>Acede a notícias, imagens e ferramentas espaciais diretamente em MR.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="youtube-screen" class="screen hidden" style="padding: 0;">
+                <div class="internal-app-header">
+                    <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                    <span class="internal-app-title">YouTube Spatial Player</span>
+                </div>
+                <div class="internal-app-content">
+                    <div style="width:100%; height:180px; background:#000; border-radius:10px; overflow:hidden;">
+                        <iframe width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk" title="Lofi Girl" frameborder="0" allowfullscreen></iframe>
+                    </div>
+                    <div class="feed-card">
+                        <h3>Lofi Hip Hop Radio - Beats to Relax/Study to</h3>
+                        <p>Canal oficial a reproduzir nativamente dentro do óculo MR.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tiktok-screen" class="screen hidden" style="padding: 0;">
+                <div class="internal-app-header">
+                    <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                    <span class="internal-app-title">TikTok Spatial Feed</span>
+                </div>
+                <div class="internal-app-content">
+                    <div class="feed-card">
+                        <h3>🎵 Tendências TikTok em MR</h3>
+                        <p>O TikTok bloqueia iframes de segurança por completo em qualquer site web externo. Podes ver o feed oficial de criadores populares aqui:</p>
+                        <button class="action-btn interactive" onclick="window.open('https://www.tiktok.com', '_blank')">Abrir TikTok Oficial</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="status">A calibrar motor MR...</div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const cursor = document.getElementById('hand-cursor');
+        const statusDiv = document.getElementById('status');
+        const floatWindow = document.getElementById('floating-window');
+        const headerBar = document.getElementById('header-bar');
+        const searchInput = document.getElementById('search-input');
+
+        // Ecrãs
+        const homeScreen = document.getElementById('home-screen');
+        const googleScreen = document.getElementById('google-screen');
+        const youtubeScreen = document.getElementById('youtube-screen');
+        const tiktokScreen = document.getElementById('tiktok-screen');
+        const googleQueryText = document.getElementById('google-query-text');
+
+        function openApp(appName) {
+            homeScreen.classList.add('hidden');
+            googleScreen.classList.add('hidden');
+            youtubeScreen.classList.add('hidden');
+            tiktokScreen.classList.add('hidden');
+
+            if (appName === 'google') {
+                const term = searchInput.value.trim() || "Realidade Mista";
+                googleQueryText.innerText = `Resultados para: "${term}"`;
+                googleScreen.classList.remove('hidden');
+            } else if (appName === 'youtube') {
+                youtubeScreen.classList.remove('hidden');
+            } else if (appName === 'tiktok') {
+                tiktokScreen.classList.remove('hidden');
+            }
+        }
+
+        function goHome() {
+            googleScreen.classList.add('hidden');
+            youtubeScreen.classList.add('hidden');
+            tiktokScreen.classList.add('hidden');
+            homeScreen.classList.remove('hidden');
+        }
+
+        // Arraste táctil na barra superior
+        let isTouchDragging = false;
+        let tStartX, tStartY, winInitX, winInitY;
+
+        headerBar.addEventListener('touchstart', (e) => {
+            isTouchDragging = true;
+            const touch = e.touches[0];
+            tStartX = touch.clientX;
+            tStartY = touch.clientY;
+            const rect = floatWindow.getBoundingClientRect();
+            winInitX = rect.left;
+            winInitY = rect.top;
+            e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if(!isTouchDragging) return;
+            const touch = e.touches[0];
+            floatWindow.style.left = (winInitX + (touch.clientX - tStartX)) + 'px';
+            floatWindow.style.top = (winInitY + (touch.clientY - tStartY)) + 'px';
+            floatWindow.style.transform = 'none';
+        });
+        window.addEventListener('touchend', () => { isTouchDragging = false; });
+
+        // Suavização ultra-rápida do cursor (Zero Delay)
+        let smoothCursorX = window.innerWidth / 2;
+        let smoothCursorY = window.innerHeight / 2;
+        const smoothing = 0.5; // Resposta super ágil sem lag
+
+        let isHandDraggingWindow = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // --- MediaPipe Hands Otimizado (640x480) ---
+        function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusDiv.innerText = `${results.multiHandLandmarks.length} Mão(s) Ativa(s) [Zero Delay] 🟢`;
+                statusDiv.style.color = "#00ff66";
+                cursor.style.display = 'block';
+
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255,255,255,0.7)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
+                }
+
+                const primaryHand = results.multiHandLandmarks[0];
+                const indexTip = primaryHand[8];
+                const thumbTip = primaryHand[4];
+
+                const targetX = indexTip.x * window.innerWidth;
+                const targetY = indexTip.y * window.innerHeight;
+
+                smoothCursorX += (targetX - smoothCursorX) * smoothing;
+                smoothCursorY += (targetY - smoothCursorY) * smoothing;
+
+                cursor.style.left = `${smoothCursorX}px`;
+                cursor.style.top = `${smoothCursorY}px`;
+
+                const pinchDistance = Math.hypot(
+                    (thumbTip.x - indexTip.x) * window.innerWidth,
+                    (thumbTip.y - indexTip.y) * window.innerHeight
+                );
+
+                const PINCH_LIMIT = 35;
+                const headerRect = headerBar.getBoundingClientRect();
+                const isOverHeader = (
+                    smoothCursorX >= headerRect.left && smoothCursorX <= headerRect.right &&
+                    smoothCursorY >= headerRect.top && smoothCursorY <= headerRect.bottom
+                );
+
+                if (pinchDistance < PINCH_LIMIT) {
+                    if (isOverHeader || isHandDraggingWindow) {
+                        if (!isHandDraggingWindow) {
+                            isHandDraggingWindow = true;
+                            const winRect = floatWindow.getBoundingClientRect();
+                            dragOffsetX = smoothCursorX - winRect.left;
+                            dragOffsetY = smoothCursorY - winRect.top;
+                            floatWindow.classList.add('dragging');
+                        }
+                        cursor.classList.add('grabbing');
+                        floatWindow.style.left = (smoothCursorX - dragOffsetX) + 'px';
+                        floatWindow.style.top = (smoothCursorY - dragOffsetY) + 'px';
+                        floatWindow.style.transform = 'none';
+                    } else {
+                        cursor.classList.add('clicking');
+                        isHandDraggingWindow = false;
+
+                        const elementUnder = document.elementFromPoint(smoothCursorX, smoothCursorY);
+                        if (elementUnder) {
+                            const clickable = elementUnder.closest('.interactive');
+                            if (clickable) {
+                                clickable.classList.add('hovered');
+                                setTimeout(() => clickable.click(), 100);
+                            }
+                        }
+                    }
+                } else {
+                    isHandDraggingWindow = false;
+                    floatWindow.classList.remove('dragging');
+                    cursor.classList.remove('clicking');
+                    cursor.classList.remove('grabbing');
+                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+                }
+
+            } else {
+                statusDiv.innerText = "A procurar mãos no enquadramento... ✋";
+                statusDiv.style.color = "#ffaa00";
+                cursor.style.display = 'none';
+                isHandDraggingWindow = false;
+                floatWindow.classList.remove('dragging');
+            }
+
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0, // Máxima velocidade, sem latência
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        // Câmara forçada a 640x480 para eliminar qualquer lag de processamento
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480,
+            facingMode: 'environment'
+        });
+        
+        camera.start().catch(err => {
+            statusDiv.innerText = "Erro ao aceder à câmara!";
+            console.error(err);
+        });
+    </script>
+</body>
+</html>
             transform: translateX(-50%);
             width: 90%;
             max-width: 400px;
