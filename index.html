@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Navegador MR Mobile</title>
+    <title>MR Browser Pro - 2 Mãos & Espacial</title>
     
     <!-- MediaPipe Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -14,7 +14,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; }
 
-        /* Câmera Fundo (Sem espelhamento, visão real traseira) */
+        /* Câmera Traseira (Visão Real) */
         #webcam {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -22,7 +22,7 @@
             z-index: 1;
         }
 
-        /* Canvas Rastreamento de Mão (Mesma proporção da câmera) */
+        /* Canvas das Mãos */
         #output_canvas {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -30,21 +30,22 @@
             pointer-events: none;
         }
 
-        /* Janela Flutuante (Vidro) */
+        /* Janela Flutuante Espacial */
         #floating-window {
             position: absolute;
-            top: 15%; left: 50%;
+            /* Posição inicial fixa no espaço virtual */
+            top: 20%; left: 50%;
             transform: translateX(-50%);
             width: 90%;
             max-width: 380px;
-            height: 480px;
+            height: 500px;
             
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(20, 20, 30, 0.65);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 30px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
             
             z-index: 10;
             display: flex;
@@ -53,10 +54,11 @@
             touch-action: none;
         }
 
-        /* Barra de Título (Arrastar) */
+        /* Barra Superior (Área de Arraste por Toque ou Pinça) */
         .window-header {
-            height: 40px;
-            background: rgba(0, 0, 0, 0.2);
+            height: 45px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -64,85 +66,107 @@
         }
         .window-header:active { cursor: grabbing; }
         .drag-bar {
-            width: 40px; height: 5px;
-            background: rgba(255,255,255,0.3);
+            width: 45px; height: 5px;
+            background: rgba(255,255,255,0.4);
             border-radius: 5px;
         }
 
-        /* Conteúdo da Janela */
+        /* Conteúdo Interno */
         .window-content {
             flex: 1;
-            padding: 25px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
 
-        .window-content h1 { font-size: 1.4rem; margin-bottom: 10px; font-weight: 600; }
-        .window-content p { font-size: 0.9rem; opacity: 0.7; margin-bottom: 20px; }
+        .window-content h1 { font-size: 1.3rem; margin-bottom: 5px; font-weight: 600; }
+        .window-content p { font-size: 0.8rem; opacity: 0.7; margin-bottom: 15px; }
 
-        /* Pesquisa Google Simulada */
-        .google-search-bar {
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
-            border-radius: 30px;
-            padding: 12px 20px;
+        /* Barra de Pesquisa */
+        .search-container {
             display: flex;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 8px 12px;
             align-items: center;
-            margin-bottom: 20px;
-            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
         }
-        .google-icon { width: 20px; height: 20px; margin-right: 10px; }
-        .search-text { font-size: 1rem; flex: 1; opacity: 0.8; }
-        .mic-icon { width: 15px; height: 15px; opacity: 0.5; }
+        .search-container input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-left: 8px;
+        }
+        .search-container input::placeholder { color: rgba(255,255,255,0.5); }
 
-        /* Dock de Apps */
+        /* Dock de Aplicativos (Google, YouTube, TikTok) */
         .app-dock {
             display: flex;
             justify-content: space-around;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.3);
             border-radius: 20px;
-            padding: 15px;
-            margin-top: auto;
+            padding: 12px;
+            gap: 10px;
         }
         .app-icon {
-            width: 50px; height: 50px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem;
-            transition: background 0.2s;
+            flex: 1;
+            height: 60px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 15px;
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
+            font-size: 1.3rem;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
         }
-        .app-icon.hovered { background: rgba(66, 133, 244, 0.5); } 
+        .app-icon span { font-size: 0.65rem; margin-top: 4px; opacity: 0.8; }
+        .app-icon.hovered { background: rgba(56, 189, 248, 0.4); border-color: #38bdf8; transform: scale(1.05); } 
 
-        /* Cursor da Mão */
+        /* Cursor da Mão Principal */
         #hand-cursor {
             position: absolute;
-            width: 20px; height: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 2px solid #333;
+            width: 24px; height: 24px;
+            background: rgba(56, 189, 248, 0.6);
+            border: 2px solid #ffffff;
             border-radius: 50%;
             z-index: 100;
             pointer-events: none;
             display: none;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            transition: transform 0.1s, background 0.1s;
+            box-shadow: 0 0 15px #38bdf8;
+            transform: translate(-50%, -50%);
+            transition: background 0.1s, transform 0.1s;
         }
         #hand-cursor.clicking {
-            transform: scale(1.5);
-            background: rgba(66, 133, 244, 0.9);
+            transform: translate(-50%, -50%) scale(0.75);
+            background: rgba(74, 222, 128, 0.9);
+            border-color: #4ade80;
+        }
+        #hand-cursor.grabbing-window {
+            background: rgba(255, 165, 0, 0.9);
+            border-color: #ffaa00;
+            box-shadow: 0 0 20px #ffaa00;
         }
 
-        /* Barra de Status */
+        /* Status */
         #status {
-            position: absolute; bottom: 10px; left: 50%;
+            position: absolute; bottom: 15px; left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.5);
-            padding: 5px 10px;
-            border-radius: 10px;
-            font-size: 0.7rem;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.75rem;
             z-index: 3;
             color: #00ff66;
+            backdrop-filter: blur(5px);
         }
     </style>
 </head>
@@ -152,32 +176,39 @@
     <canvas id="output_canvas"></canvas>
     <div id="hand-cursor"></div>
 
+    <!-- Janela Flutuante -->
     <div id="floating-window">
         <div class="window-header" id="header-bar">
             <div class="drag-bar"></div>
         </div>
         <div class="window-content">
             <div>
-                <h1>Bem-vindo ao MR</h1>
-                <p>Navegue pela web com suas mãos. Aponte o dedo e use o movimento de pinça para clicar.</p>
+                <h1>Painel MR Espacial</h1>
+                <p>Use pinça na barra superior para arrastar a janela no ar, ou nos ícones para abrir.</p>
                 
-                <div class="google-search-bar" id="search-btn">
-                    <img src="https://www.google.com/images/branding/googleg/2x/googleg_standard_color_92dp.png" class="google-icon" alt="Google">
-                    <span class="search-text">Pesquisar ou URL</span>
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/e8/Google_mic.svg" class="mic-icon" alt="Microfone">
+                <!-- Barra de pesquisa Google -->
+                <div class="search-container" id="search-box">
+                    <span>🔍</span>
+                    <input type="text" id="query-input" placeholder="Pesquisar no Google...">
                 </div>
             </div>
 
+            <!-- Apps -->
             <div class="app-dock">
-                <div class="app-icon" id="app-yt">📺</div>
-                <div class="app-icon" id="app-maps">🗺️</div>
-                <div class="app-icon" id="app-fotos">🖼️</div>
-                <div class="app-icon" id="app-config">⚙️</div>
+                <div class="app-icon" onclick="openApp('google')">
+                    🌐<span>Google</span>
+                </div>
+                <div class="app-icon" onclick="openApp('youtube')">
+                    📺<span>YouTube</span>
+                </div>
+                <div class="app-icon" onclick="openApp('tiktok')">
+                    🎵<span>TikTok</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="status">Inicializando...</div>
+    <div id="status">Iniciando sistema MR...</div>
 
     <script>
         const videoElement = document.getElementById('webcam');
@@ -187,32 +218,52 @@
         const statusDiv = document.getElementById('status');
         const floatWindow = document.getElementById('floating-window');
         const headerBar = document.getElementById('header-bar');
+        const queryInput = document.getElementById('query-input');
 
-        let isDragging = false;
-        let grabX, grabY, winX, winY;
+        // Variáveis para controle de arraste por toque na tela
+        let isTouchDragging = false;
+        let touchStartX, touchStartY, winInitialX, winInitialY;
 
         headerBar.addEventListener('touchstart', (e) => {
-            isDragging = true;
+            isTouchDragging = true;
             const touch = e.touches[0];
-            grabX = touch.clientX;
-            grabY = touch.clientY;
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
             const rect = floatWindow.getBoundingClientRect();
-            winX = rect.left;
-            winY = rect.top;
+            winInitialX = rect.left;
+            winInitialY = rect.top;
             e.preventDefault();
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
-            if(!isDragging) return;
+            if(!isTouchDragging) return;
             const touch = e.touches[0];
-            const deltaX = touch.clientX - grabX;
-            floatWindow.style.left = (winX + deltaX) + 'px';
-            floatWindow.style.top = (winY + (touch.clientY - grabY)) + 'px';
+            floatWindow.style.left = (winInitialX + (touch.clientX - touchStartX)) + 'px';
+            floatWindow.style.top = (winInitialY + (touch.clientY - touchStartY)) + 'px';
             floatWindow.style.transform = 'none';
         });
 
-        window.addEventListener('touchend', () => { isDragging = false; });
+        window.addEventListener('touchend', () => { isTouchDragging = false; });
 
+        // Função de abrir os aplicativos
+        function openApp(app) {
+            if (app === 'google') {
+                const term = queryInput.value.trim();
+                const url = term ? `https://www.google.com/search?q=${encodeURIComponent(term)}` : `https://www.google.com`;
+                window.open(url, '_blank');
+            } else if (app === 'youtube') {
+                window.open('https://www.youtube.com', '_blank');
+            } else if (app === 'tiktok') {
+                window.open('https://www.tiktok.com', '_blank');
+            }
+        }
+
+        // Variável de controle para o Arraste por Gestos (Pinça na Barra Superior)
+        let isHandDraggingWindow = false;
+        let dragOffsetWindowX = 0;
+        let dragOffsetWindowY = 0;
+
+        // --- MediaPipe Hands (Configurado para 2 Mãos e Baixa Latência) ---
         function onResults(results) {
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
@@ -221,68 +272,95 @@
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusDiv.innerText = "Mão Rastreada";
+                statusDiv.innerText = `${results.multiHandLandmarks.length} Mão(s) Ativa(s) 🟢`;
                 statusDiv.style.color = "#00ff66";
                 cursor.style.display = 'block';
 
-                const landmarks = results.multiHandLandmarks[0];
-                
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'white', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 3});
+                // Desenha o esqueleto limpo em TODAS as mãos detectadas
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255,255,255,0.7)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
+                }
 
-                const indexFinger = landmarks[8];
-                const thumb = landmarks[4];
+                // Usa a primeira mão detectada para guiar o cursor principal e interagir
+                const primaryHand = results.multiHandLandmarks[0];
+                const indexFinger = primaryHand[8]; // Ponta do indicador
+                const thumb = primaryHand[4];       // Ponta do polegar
 
-                // Mapeamento normalizado direto (sem inversão)
                 const x = indexFinger.x * window.innerWidth;
                 const y = indexFinger.y * window.innerHeight;
 
-                cursor.style.left = (x - (cursor.offsetWidth / 2)) + 'px';
-                cursor.style.top = (y - (cursor.offsetHeight / 2)) + 'px';
+                cursor.style.left = `${x}px`;
+                cursor.style.top = `${y}px`;
 
-                const dx = indexFinger.x - thumb.x;
-                const dy = indexFinger.y - thumb.y;
-                const dz = indexFinger.z - thumb.z;
-                const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                // Cálculo da distância da pinça (Dedão + Indicador)
+                const distance = Math.hypot(
+                    (thumb.x - indexFinger.x) * window.innerWidth,
+                    (thumb.y - indexFinger.y) * window.innerHeight
+                );
 
-                if (distance < 0.07) {
-                    cursor.classList.add('clicking');
-                    
-                    const cursorRect = cursor.getBoundingClientRect();
-                    const cursorX = cursorRect.left + (cursorRect.width/2);
-                    const cursorY = cursorRect.top + (cursorRect.height/2);
-                    
-                    const elementUnder = document.elementFromPoint(cursorX, cursorY);
-                    if (elementUnder) {
-                        const clickable = elementUnder.closest('.google-search-bar, .app-icon');
-                        if(clickable) {
-                            clickable.classList.add('hovered');
-                            setTimeout(() => clickable.click(), 50);
+                const PINCH_THRESHOLD = 35; // Limiar de proximidade para pinça
+
+                // Verifica se o usuário está fazendo pinça na barra superior para ARRASTAR a janela
+                const headerRect = headerBar.getBoundingClientRect();
+                const isOverHeader = (
+                    x >= headerRect.left && x <= headerRect.right &&
+                    y >= headerRect.top && y <= headerRect.bottom
+                );
+
+                if (distance < PINCH_THRESHOLD) {
+                    if (isOverHeader || isHandDraggingWindow) {
+                        // Ativa o modo de arrastar a janela no ar com as mãos!
+                        if (!isHandDraggingWindow) {
+                            isHandDraggingWindow = true;
+                            const winRect = floatWindow.getBoundingClientRect();
+                            dragOffsetWindowX = x - winRect.left;
+                            dragOffsetWindowY = y - winRect.top;
+                        }
+                        cursor.classList.add('grabbing-window');
+                        floatWindow.style.left = (x - dragOffsetWindowX) + 'px';
+                        floatWindow.style.top = (y - dragOffsetWindowY) + 'px';
+                        floatWindow.style.transform = 'none';
+                    } else {
+                        // Clique normal em botões/apps
+                        cursor.classList.add('clicking');
+                        isHandDraggingWindow = false;
+
+                        const elementUnder = document.elementFromPoint(x, y);
+                        if (elementUnder) {
+                            const clickable = elementUnder.closest('.app-icon');
+                            if (clickable) {
+                                clickable.classList.add('hovered');
+                                setTimeout(() => clickable.click(), 100);
+                            }
                         }
                     }
                 } else {
+                    isHandDraggingWindow = false;
                     cursor.classList.remove('clicking');
+                    cursor.classList.remove('grabbing-window');
                     document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
                 }
 
             } else {
-                statusDiv.innerText = "Aguardando mão...";
+                statusDiv.innerText = "Aguardando mãos no enquadramento... ✋";
                 statusDiv.style.color = "#ffaa00";
                 cursor.style.display = 'none';
+                isHandDraggingWindow = false;
             }
 
             canvasCtx.restore();
         }
 
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }});
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
 
         hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.5
+            maxNumHands: 2,          // Suporte a 2 mãos simultâneas
+            modelComplexity: 0,      // Nível 0 = Mais rápido, sem delay perceptível no celular
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
         });
 
         hands.onResults(onResults);
@@ -293,9 +371,13 @@
             },
             width: 1280,
             height: 720,
-            facingMode: 'environment'
+            facingMode: 'environment' // Câmera traseira
         });
-        camera.start();
+        
+        camera.start().catch(err => {
+            statusDiv.innerText = "Erro ao acessar a câmera!";
+            console.error(err);
+        });
     </script>
 </body>
 </html>
