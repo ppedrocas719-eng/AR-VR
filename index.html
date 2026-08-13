@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MR Spatial 3D - Perfect Alignment & Zero Lag</title>
+    <title>MR Spatial OS - Perfect Alignment & Real Google</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -13,12 +13,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #fff; perspective: 1400px; }
 
-        #webcam {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
-        }
+        #webcam { display: none; }
 
         #output_canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
         }
 
         .spatial-scene {
@@ -30,37 +28,37 @@
 
         #floating-panel {
             position: absolute;
-            width: 380px;
-            height: 520px;
-            background: rgba(14, 14, 22, 0.88);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 2px solid rgba(56, 189, 248, 0.75);
-            border-radius: 30px;
-            box-shadow: 0 40px 90px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.35);
+            width: 390px;
+            height: 560px;
+            background: rgba(12, 12, 18, 0.92);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 2px solid rgba(56, 189, 248, 0.8);
+            border-radius: 32px;
+            box-shadow: 0 45px 100px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.4);
             display: flex; flex-direction: column; overflow: hidden;
             pointer-events: auto;
             touch-action: none;
             transform-style: preserve-3d;
             will-change: transform;
             transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg);
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
         #floating-panel.dragging {
-            box-shadow: 0 60px 120px rgba(0,0,0,0.95), 0 0 40px rgba(56, 189, 248, 0.7);
+            box-shadow: 0 70px 140px rgba(0,0,0,0.98), 0 0 50px rgba(56, 189, 248, 0.8);
             border-color: #38bdf8;
         }
 
         .panel-header {
-            height: 50px;
-            background: rgba(56, 189, 248, 0.22);
+            height: 52px;
+            background: rgba(56, 189, 248, 0.25);
             border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             display: flex; align-items: center; justify-content: space-between;
-            padding: 0 18px; cursor: grab;
+            padding: 0 20px; cursor: grab;
         }
         .panel-header:active { cursor: grabbing; }
-        .panel-title { font-size: 0.82rem; font-weight: 700; letter-spacing: 1.5px; opacity: 0.95; }
-        .drag-bar { width: 45px; height: 5px; background: rgba(255,255,255,0.5); border-radius: 4px; }
+        .panel-title { font-size: 0.82rem; font-weight: 700; letter-spacing: 1.5px; }
+        .drag-bar { width: 50px; height: 5px; background: rgba(255,255,255,0.6); border-radius: 4px; }
 
         .panel-body {
             flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden;
@@ -69,61 +67,47 @@
         .screen-view {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             padding: 22px; display: flex; flex-direction: column; justify-content: space-between;
-            transition: opacity 0.15s ease, transform 0.15s ease;
         }
-        .screen-view.hidden { opacity: 0; pointer-events: none; transform: scale(0.96); display: none; }
+        .screen-view.hidden { display: none; }
 
-        .home-content h1 { font-size: 1.4rem; margin-bottom: 6px; font-weight: 700; }
-        .home-content p { font-size: 0.84rem; opacity: 0.8; margin-bottom: 16px; line-height: 1.4; }
+        .home-content h1 { font-size: 1.4rem; margin-bottom: 8px; font-weight: 700; }
+        .home-content p { font-size: 0.84rem; opacity: 0.8; margin-bottom: 20px; line-height: 1.4; }
 
-        .search-box {
-            display: flex; background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 18px; padding: 12px 16px; align-items: center; margin-bottom: 15px;
-        }
-        .search-box input {
-            background: transparent; border: none; outline: none; color: white; font-size: 0.92rem; width: 100%; margin-left: 10px;
-        }
-        .search-box input::placeholder { color: rgba(255,255,255,0.45); }
-
-        .app-dock { display: flex; justify-content: space-between; gap: 12px; }
+        .app-dock { display: flex; justify-content: space-between; gap: 14px; margin-top: auto; }
         .app-icon {
-            flex: 1; height: 76px;
+            flex: 1; height: 85px;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            cursor: pointer; transition: background 0.15s, transform 0.15s, border-color 0.15s;
+            cursor: pointer; transition: transform 0.1s, background 0.1s;
         }
-        .app-icon span { font-size: 0.68rem; margin-top: 6px; font-weight: 600; opacity: 0.95; }
+        .app-icon span { font-size: 0.72rem; margin-top: 6px; font-weight: 600; }
         .app-icon.hovered {
-            background: rgba(56, 189, 248, 0.35);
-            border-color: #38bdf8; transform: scale(1.06);
+            background: rgba(56, 189, 248, 0.4);
+            border-color: #38bdf8; transform: scale(1.08);
         }
 
-        /* Sub-telas internas (Google / Apps na Tela Flutuante 3D) */
+        /* Google Real e Apps em Iframe Interno */
         .internal-header {
-            background: rgba(255, 255, 255, 0.08); padding: 12px 16px;
-            display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.08); padding: 12px 18px;
+            display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
         }
         .back-btn {
-            background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3);
             color: white; padding: 6px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
         }
-        .internal-title { font-size: 0.9rem; font-weight: 700; opacity: 0.95; }
+        .internal-title { font-size: 0.9rem; font-weight: 700; }
         
-        .internal-content {
-            flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+        .iframe-container {
+            flex: 1; width: 100%; background: #fff; position: relative;
         }
-        .result-card {
-            background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+        .iframe-container iframe {
+            width: 100%; height: 100%; border: none;
         }
-        .result-card h3 { font-size: 0.92rem; color: #38bdf8; }
-        .result-card p { font-size: 0.78rem; opacity: 0.75; line-height: 1.35; }
 
         #hand-cursor {
-            position: absolute; width: 20px; height: 20px;
+            position: absolute; width: 22px; height: 22px;
             background: #38bdf8; border: 3px solid #ffffff;
             border-radius: 50%; z-index: 100; pointer-events: none;
             transform: translate(-50%, -50%); display: none;
@@ -132,7 +116,7 @@
         #hand-cursor.pinching {
             background: #4ade80; border-color: #fff;
             transform: translate(-50%, -50%) scale(0.6);
-            box-shadow: 0 0 20px #4ade80;
+            box-shadow: 0 0 22px #4ade80;
         }
 
         #status {
@@ -159,50 +143,31 @@
                 <!-- Home Screen -->
                 <div id="home-screen" class="screen-view">
                     <div class="home-content">
-                        <h1>Painel Espacial 3D</h1>
-                        <p>Faz pinça na barra superior para mover. Clica no Google para abrir a aba diretamente aqui dentro da janela flutuante!</p>
-                        
-                        <div class="search-box">
-                            <span>🔍</span>
-                            <input type="text" id="search-input" placeholder="Pesquisar no Google espacial...">
-                        </div>
+                        <h1>Computação Espacial</h1>
+                        <p>Faz pinça na barra superior para mover o painel. Clica nos ícones abaixo para abrir o Google real ou o YouTube diretamente na tela flutuante 3D!</p>
                     </div>
 
                     <div class="app-dock">
-                        <div class="app-icon interactive" onclick="openGoogleApp()">
-                            <span style="font-size: 1.5rem;">🌐</span>
+                        <div class="app-icon interactive" onclick="openApp('google')">
+                            <span style="font-size: 1.6rem;">🌐</span>
                             <span>Google</span>
                         </div>
                         <div class="app-icon interactive" onclick="openApp('youtube')">
-                            <span style="font-size: 1.5rem;">📺</span>
+                            <span style="font-size: 1.6rem;">📺</span>
                             <span>YouTube</span>
-                        </div>
-                        <div class="app-icon interactive" onclick="openApp('tiktok')">
-                            <span style="font-size: 1.5rem;">🎵</span>
-                            <span>TikTok</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Google Internal Spatial View (ABRE DENTRO DA TELA FLUTUANTE 3D) -->
+                <!-- Google Real Screen (Google Oficial incorporado na tela flutuante) -->
                 <div id="google-screen" class="screen-view hidden" style="padding: 0;">
                     <div class="internal-header">
                         <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-title">Google Search (Painel 3D)</span>
+                        <span class="internal-title">Google Search (Oficial)</span>
                     </div>
-                    <div class="internal-content">
-                        <div class="result-card">
-                            <h3 id="google-term-title">Pesquisa: Realidade Mista</h3>
-                            <p id="google-desc">Apresentando os resultados diretamente no seu óculo/painel espacial flutuante, sem abrir navegadores externos.</p>
-                        </div>
-                        <div class="result-card">
-                            <h3>🌐 Spatial Computing OS</h3>
-                            <p>Explore páginas web, interfaces holográficas e aplicativos imersivos totalmente integrados ao seu ambiente.</p>
-                        </div>
-                        <div class="result-card">
-                            <h3>⚡ Real-time Hand Tracking</h3>
-                            <p>Tecnologia de rastreio de esqueleto otimizada para zero delay e encaixe perfeito nas articulações.</p>
-                        </div>
+                    <div class="iframe-container">
+                        <!-- O parâmetro igu=1 permite carregar o Google limpo dentro de iframes -->
+                        <iframe src="https://www.google.com/search?igu=1" title="Google Real"></iframe>
                     </div>
                 </div>
 
@@ -210,31 +175,10 @@
                 <div id="youtube-screen" class="screen-view hidden" style="padding: 0;">
                     <div class="internal-header">
                         <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-title">YouTube Spatial Player</span>
+                        <span class="internal-title">YouTube Player</span>
                     </div>
-                    <div class="internal-content">
-                        <div style="width:100%; height:180px; background:#000; border-radius:12px; overflow:hidden;">
-                            <iframe width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk" title="Lofi Girl" frameborder="0" allowfullscreen></iframe>
-                        </div>
-                        <div class="result-card">
-                            <h3>Lofi Spatial Radio</h3>
-                            <p>Reproduzindo nativamente em 3D dentro do painel flutuante.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TikTok Screen -->
-                <div id="tiktok-screen" class="screen-view hidden" style="padding: 0;">
-                    <div class="internal-header">
-                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-title">TikTok Spatial Feed</span>
-                    </div>
-                    <div class="internal-content">
-                        <div class="result-card">
-                            <h3>🎵 Feed TikTok em MR</h3>
-                            <p>O TikTok restringe iframes nativos por segurança. Utilize o botão abaixo para abrir a versão oficial se desejar:</p>
-                            <button class="app-icon interactive" style="width:100%; height:45px; margin-top:10px; background:#38bdf8; color:#000;" onclick="window.open('https://www.tiktok.com', '_blank')">Abrir TikTok Externo</button>
-                        </div>
+                    <div class="iframe-container" style="background:#000;">
+                        <iframe src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk" title="YouTube" allowfullscreen></iframe>
                     </div>
                 </div>
 
@@ -242,7 +186,7 @@
         </div>
     </div>
 
-    <div id="status">A calibrar esqueleto perfeito...</div>
+    <div id="status">A calibrar alinhamento perfeito...</div>
 
     <script>
         const videoElement = document.getElementById('webcam');
@@ -252,46 +196,31 @@
         const statusDiv = document.getElementById('status');
         const floatPanel = document.getElementById('floating-panel');
         const headerDrag = document.getElementById('header-drag');
-        const searchInput = document.getElementById('search-input');
 
         const homeScreen = document.getElementById('home-screen');
         const googleScreen = document.getElementById('google-screen');
         const youtubeScreen = document.getElementById('youtube-screen');
-        const tiktokScreen = document.getElementById('tiktok-screen');
-        const googleTermTitle = document.getElementById('google-term-title');
-        const googleDesc = document.getElementById('google-desc');
-
-        function openGoogleApp() {
-            const query = searchInput.value.trim() || "Realidade Mista e Computação Espacial";
-            googleTermTitle.innerText = `Pesquisa: "${query}"`;
-            googleDesc.innerText = `Resultados em tempo real gerados para "${query}" dentro do painel flutuante 3D.`;
-            
-            homeScreen.classList.add('hidden');
-            googleScreen.classList.remove('hidden');
-        }
 
         function openApp(appName) {
             homeScreen.classList.add('hidden');
             googleScreen.classList.add('hidden');
             youtubeScreen.classList.add('hidden');
-            tiktokScreen.classList.add('hidden');
 
-            if (appName === 'youtube') {
+            if (appName === 'google') {
+                googleScreen.classList.remove('hidden');
+            } else if (appName === 'youtube') {
                 youtubeScreen.classList.remove('hidden');
-            } else if (appName === 'tiktok') {
-                tiktokScreen.classList.remove('hidden');
             }
         }
 
         function goHome() {
             googleScreen.classList.add('hidden');
             youtubeScreen.classList.add('hidden');
-            tiktokScreen.classList.add('hidden');
             homeScreen.classList.remove('hidden');
         }
 
-        let panelX = (window.innerWidth - 380) / 2;
-        let panelY = (window.innerHeight - 520) / 2;
+        let panelX = (window.innerWidth - 390) / 2;
+        let panelY = (window.innerHeight - 560) / 2;
         
         let isDragging = false;
         let dragOffsetX = 0;
@@ -300,11 +229,15 @@
         floatPanel.style.transform = `translate3d(${panelX}px, ${panelY}px, 0px) rotateX(0deg) rotateY(0deg)`;
 
         function onResults(results) {
-            canvasElement.width = window.innerWidth;
-            canvasElement.height = window.innerHeight;
+            // Sincronização exata da resolução do canvas com o vídeo da câmara
+            canvasElement.width = videoElement.videoWidth || 640;
+            canvasElement.height = videoElement.videoHeight || 480;
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Desenhar a câmara diretamente no canvas para garantir alinhamento perfeito sem desvios
+            canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 statusDiv.innerText = "Mão Detetada [Alinhamento Perfeito & Zero Lag] 🟢";
@@ -312,32 +245,33 @@
 
                 const landmarks = results.multiHandLandmarks[0];
 
-                // CORREÇÃO DE ALINHAMENTO: Mapeamento exato ao rect real da câmara (object-fit: cover)
-                const videoRect = videoElement.getBoundingClientRect();
+                // Desenhar o esqueleto diretamente sobre as coordenadas nativas do canvas (alinhamento exato)
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(56, 189, 248, 0.7)', lineWidth: 3});
+                drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 4});
+
                 const indexTip = landmarks[8];
                 const thumbTip = landmarks[4];
 
-                drawAlignedLandmarks(canvasCtx, landmarks, videoRect);
+                // Conversão direta de coordenadas normalizadas para o ecrã com object-fit: cover
+                const screenCoords = getScreenCoordinates(indexTip.x, indexTip.y, canvasElement.width, canvasElement.height);
+                const thumbCoords = getScreenCoordinates(thumbTip.x, thumbTip.y, canvasElement.width, canvasElement.height);
 
-                const targetX = videoRect.left + indexTip.x * videoRect.width;
-                const targetY = videoRect.top + indexTip.y * videoRect.height;
-
-                // ZERO DELAY ABSOLUTO: Atribuição direta sem interpolação
-                let cursorX = targetX;
-                let cursorY = targetY;
+                // ZERO DELAY ABSOLUTO: Atribuição direta sem interpolação pesada
+                let cursorX = screenCoords.x;
+                let cursorY = screenCoords.y;
 
                 cursor.style.left = `${cursorX}px`;
                 cursor.style.top = `${cursorY}px`;
 
-                // Inclinação 3D espacial dinâmica
+                // Inclinação 3D espacial dinâmica baseada na posição do dedo
                 const centerX = window.innerWidth / 2;
                 const centerY = window.innerHeight / 2;
                 const tiltY = ((cursorX - centerX) / centerX) * 12;
                 const tiltX = -((cursorY - centerY) / centerY) * 12;
 
                 const pinchDist = Math.hypot(
-                    (thumbTip.x - indexTip.x) * videoRect.width,
-                    (thumbTip.y - indexTip.y) * videoRect.height
+                    (thumbCoords.x - screenCoords.x),
+                    (thumbCoords.y - screenCoords.y)
                 );
 
                 const headerRect = headerDrag.getBoundingClientRect();
@@ -346,7 +280,7 @@
                     cursorY >= headerRect.top && cursorY <= headerRect.bottom
                 );
 
-                if (pinchDist < 42) {
+                if (pinchDist < 40) {
                     cursor.classList.add('pinching');
                     if (isOverHeader || isDragging) {
                         if (!isDragging) {
@@ -363,7 +297,7 @@
                             const clickable = elementUnder.closest('.interactive');
                             if (clickable) {
                                 clickable.classList.add('hovered');
-                                setTimeout(() => clickable.click(), 60);
+                                setTimeout(() => clickable.click(), 50);
                             }
                         }
                     }
@@ -387,30 +321,29 @@
             canvasCtx.restore();
         }
 
-        function drawAlignedLandmarks(ctx, landmarks, rect) {
-            const mappedPoints = landmarks.map(l => ({
-                x: rect.left + l.x * rect.width,
-                y: rect.top + l.y * rect.height,
-                z: l.z
-            }));
+        // Função para mapear perfeitamente as coordenadas da câmara com o CSS object-fit: cover do ecrã
+        function getScreenCoordinates(normX, normY, videoWidth, videoHeight) {
+            const screenW = window.innerWidth;
+            const screenH = window.innerHeight;
+            const videoRatio = videoWidth / videoHeight;
+            const screenRatio = screenW / screenH;
 
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
-            ctx.lineWidth = 2.5;
-            for (const connection of HAND_CONNECTIONS) {
-                const p1 = mappedPoints[connection[0]];
-                const p2 = mappedPoints[connection[1]];
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
+            let renderW, renderH, offsetX = 0, offsetY = 0;
+
+            if (screenRatio > videoRatio) {
+                renderW = screenW;
+                renderH = screenW / videoRatio;
+                offsetY = (screenH - renderH) / 2;
+            } else {
+                renderH = screenH;
+                renderW = screenH * videoRatio;
+                offsetX = (screenW - renderW) / 2;
             }
 
-            for (const p of mappedPoints) {
-                ctx.fillStyle = '#38bdf8';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3.5, 0, 2 * Math.PI);
-                ctx.fill();
-            }
+            return {
+                x: offsetX + (normX * renderW),
+                y: offsetY + (normY * renderH)
+            };
         }
 
         const hands = new Hands({
@@ -420,8 +353,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 0,
-            minDetectionConfidence: 0.55,
-            minTrackingConfidence: 0.55
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
         });
 
         hands.onResults(onResults);
