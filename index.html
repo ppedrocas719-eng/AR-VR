@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MR Spatial 3D - Zero Lag</title>
+    <title>MR Spatial 3D - Perfect Alignment & Zero Lag</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -11,7 +11,7 @@
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; color: #fff; perspective: 1200px; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #fff; perspective: 1400px; }
 
         #webcam {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
@@ -21,8 +21,7 @@
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
         }
 
-        /* Cena com Profundidade 3D Real */
-        .scene-3d {
+        .spatial-scene {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; align-items: center; justify-content: center;
             z-index: 10; pointer-events: none;
@@ -31,45 +30,97 @@
 
         #floating-panel {
             position: absolute;
-            width: 350px;
-            height: 480px;
-            background: rgba(12, 12, 20, 0.94);
-            border: 2px solid rgba(56, 189, 248, 0.8);
-            border-radius: 28px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.3);
+            width: 380px;
+            height: 520px;
+            background: rgba(14, 14, 22, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(56, 189, 248, 0.75);
+            border-radius: 30px;
+            box-shadow: 0 40px 90px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.35);
             display: flex; flex-direction: column; overflow: hidden;
             pointer-events: auto;
             touch-action: none;
             transform-style: preserve-3d;
             will-change: transform;
             transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        #floating-panel.dragging {
+            box-shadow: 0 60px 120px rgba(0,0,0,0.95), 0 0 40px rgba(56, 189, 248, 0.7);
+            border-color: #38bdf8;
         }
 
         .panel-header {
             height: 50px;
-            background: rgba(56, 189, 248, 0.2);
+            background: rgba(56, 189, 248, 0.22);
             border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.8rem; font-weight: bold; letter-spacing: 1.5px;
-            cursor: grab;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 18px; cursor: grab;
         }
+        .panel-header:active { cursor: grabbing; }
+        .panel-title { font-size: 0.82rem; font-weight: 700; letter-spacing: 1.5px; opacity: 0.95; }
+        .drag-bar { width: 45px; height: 5px; background: rgba(255,255,255,0.5); border-radius: 4px; }
 
         .panel-body {
-            flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 14px;
+            flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden;
         }
 
-        .card {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+        .screen-view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 22px; display: flex; flex-direction: column; justify-content: space-between;
+            transition: opacity 0.15s ease, transform 0.15s ease;
         }
-        .card h3 { font-size: 0.95rem; color: #38bdf8; }
-        .card p { font-size: 0.8rem; opacity: 0.75; line-height: 1.3; }
+        .screen-view.hidden { opacity: 0; pointer-events: none; transform: scale(0.96); display: none; }
 
-        .btn-action {
-            background: #38bdf8; color: #000; border: none; padding: 12px;
-            border-radius: 12px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: center;
+        .home-content h1 { font-size: 1.4rem; margin-bottom: 6px; font-weight: 700; }
+        .home-content p { font-size: 0.84rem; opacity: 0.8; margin-bottom: 16px; line-height: 1.4; }
+
+        .search-box {
+            display: flex; background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 18px; padding: 12px 16px; align-items: center; margin-bottom: 15px;
         }
+        .search-box input {
+            background: transparent; border: none; outline: none; color: white; font-size: 0.92rem; width: 100%; margin-left: 10px;
+        }
+        .search-box input::placeholder { color: rgba(255,255,255,0.45); }
+
+        .app-dock { display: flex; justify-content: space-between; gap: 12px; }
+        .app-icon {
+            flex: 1; height: 76px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 18px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: background 0.15s, transform 0.15s, border-color 0.15s;
+        }
+        .app-icon span { font-size: 0.68rem; margin-top: 6px; font-weight: 600; opacity: 0.95; }
+        .app-icon.hovered {
+            background: rgba(56, 189, 248, 0.35);
+            border-color: #38bdf8; transform: scale(1.06);
+        }
+
+        /* Sub-telas internas (Google / Apps na Tela Flutuante 3D) */
+        .internal-header {
+            background: rgba(255, 255, 255, 0.08); padding: 12px 16px;
+            display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .back-btn {
+            background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.25);
+            color: white; padding: 6px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+        }
+        .internal-title { font-size: 0.9rem; font-weight: 700; opacity: 0.95; }
+        
+        .internal-content {
+            flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+        }
+        .result-card {
+            background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .result-card h3 { font-size: 0.92rem; color: #38bdf8; }
+        .result-card p { font-size: 0.78rem; opacity: 0.75; line-height: 1.35; }
 
         #hand-cursor {
             position: absolute; width: 20px; height: 20px;
@@ -97,22 +148,101 @@
     <canvas id="output_canvas"></canvas>
     <div id="hand-cursor"></div>
 
-    <div class="scene-3d">
+    <div class="spatial-scene">
         <div id="floating-panel">
-            <div class="panel-header" id="header-drag">✨ AGARRAR AQUI (PINÇA)</div>
+            <div class="panel-header" id="header-drag">
+                <span class="panel-title">MR SPATIAL OS</span>
+                <div class="drag-bar"></div>
+            </div>
             <div class="panel-body">
-                <h2>Painel Espacial 3D</h2>
-                <p>Usa o polegar e o indicador juntos na barra de cima para mover o painel pelo ar. Repara na perspetiva 3D inclinada na tua direção!</p>
-                <div class="card">
-                    <h3>Estado do Sistema</h3>
-                    <p id="info-text">Rastreio de mão ativo com malha visual e resposta imediata.</p>
+                
+                <!-- Home Screen -->
+                <div id="home-screen" class="screen-view">
+                    <div class="home-content">
+                        <h1>Painel Espacial 3D</h1>
+                        <p>Faz pinça na barra superior para mover. Clica no Google para abrir a aba diretamente aqui dentro da janela flutuante!</p>
+                        
+                        <div class="search-box">
+                            <span>🔍</span>
+                            <input type="text" id="search-input" placeholder="Pesquisar no Google espacial...">
+                        </div>
+                    </div>
+
+                    <div class="app-dock">
+                        <div class="app-icon interactive" onclick="openGoogleApp()">
+                            <span style="font-size: 1.5rem;">🌐</span>
+                            <span>Google</span>
+                        </div>
+                        <div class="app-icon interactive" onclick="openApp('youtube')">
+                            <span style="font-size: 1.5rem;">📺</span>
+                            <span>YouTube</span>
+                        </div>
+                        <div class="app-icon interactive" onclick="openApp('tiktok')">
+                            <span style="font-size: 1.5rem;">🎵</span>
+                            <span>TikTok</span>
+                        </div>
+                    </div>
                 </div>
-                <button class="btn-action" onclick="alert('Ação executada com sucesso!')">Clicar com o Dedo</button>
+
+                <!-- Google Internal Spatial View (ABRE DENTRO DA TELA FLUTUANTE 3D) -->
+                <div id="google-screen" class="screen-view hidden" style="padding: 0;">
+                    <div class="internal-header">
+                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                        <span class="internal-title">Google Search (Painel 3D)</span>
+                    </div>
+                    <div class="internal-content">
+                        <div class="result-card">
+                            <h3 id="google-term-title">Pesquisa: Realidade Mista</h3>
+                            <p id="google-desc">Apresentando os resultados diretamente no seu óculo/painel espacial flutuante, sem abrir navegadores externos.</p>
+                        </div>
+                        <div class="result-card">
+                            <h3>🌐 Spatial Computing OS</h3>
+                            <p>Explore páginas web, interfaces holográficas e aplicativos imersivos totalmente integrados ao seu ambiente.</p>
+                        </div>
+                        <div class="result-card">
+                            <h3>⚡ Real-time Hand Tracking</h3>
+                            <p>Tecnologia de rastreio de esqueleto otimizada para zero delay e encaixe perfeito nas articulações.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- YouTube Screen -->
+                <div id="youtube-screen" class="screen-view hidden" style="padding: 0;">
+                    <div class="internal-header">
+                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                        <span class="internal-title">YouTube Spatial Player</span>
+                    </div>
+                    <div class="internal-content">
+                        <div style="width:100%; height:180px; background:#000; border-radius:12px; overflow:hidden;">
+                            <iframe width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk" title="Lofi Girl" frameborder="0" allowfullscreen></iframe>
+                        </div>
+                        <div class="result-card">
+                            <h3>Lofi Spatial Radio</h3>
+                            <p>Reproduzindo nativamente em 3D dentro do painel flutuante.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TikTok Screen -->
+                <div id="tiktok-screen" class="screen-view hidden" style="padding: 0;">
+                    <div class="internal-header">
+                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
+                        <span class="internal-title">TikTok Spatial Feed</span>
+                    </div>
+                    <div class="internal-content">
+                        <div class="result-card">
+                            <h3>🎵 Feed TikTok em MR</h3>
+                            <p>O TikTok restringe iframes nativos por segurança. Utilize o botão abaixo para abrir a versão oficial se desejar:</p>
+                            <button class="app-icon interactive" style="width:100%; height:45px; margin-top:10px; background:#38bdf8; color:#000;" onclick="window.open('https://www.tiktok.com', '_blank')">Abrir TikTok Externo</button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
-    <div id="status">A inicializar motor 3D...</div>
+    <div id="status">A calibrar esqueleto perfeito...</div>
 
     <script>
         const videoElement = document.getElementById('webcam');
@@ -122,12 +252,46 @@
         const statusDiv = document.getElementById('status');
         const floatPanel = document.getElementById('floating-panel');
         const headerDrag = document.getElementById('header-drag');
+        const searchInput = document.getElementById('search-input');
 
-        let cursorX = window.innerWidth / 2;
-        let cursorY = window.innerHeight / 2;
+        const homeScreen = document.getElementById('home-screen');
+        const googleScreen = document.getElementById('google-screen');
+        const youtubeScreen = document.getElementById('youtube-screen');
+        const tiktokScreen = document.getElementById('tiktok-screen');
+        const googleTermTitle = document.getElementById('google-term-title');
+        const googleDesc = document.getElementById('google-desc');
 
-        let panelX = (window.innerWidth - 350) / 2;
-        let panelY = (window.innerHeight - 480) / 2;
+        function openGoogleApp() {
+            const query = searchInput.value.trim() || "Realidade Mista e Computação Espacial";
+            googleTermTitle.innerText = `Pesquisa: "${query}"`;
+            googleDesc.innerText = `Resultados em tempo real gerados para "${query}" dentro do painel flutuante 3D.`;
+            
+            homeScreen.classList.add('hidden');
+            googleScreen.classList.remove('hidden');
+        }
+
+        function openApp(appName) {
+            homeScreen.classList.add('hidden');
+            googleScreen.classList.add('hidden');
+            youtubeScreen.classList.add('hidden');
+            tiktokScreen.classList.add('hidden');
+
+            if (appName === 'youtube') {
+                youtubeScreen.classList.remove('hidden');
+            } else if (appName === 'tiktok') {
+                tiktokScreen.classList.remove('hidden');
+            }
+        }
+
+        function goHome() {
+            googleScreen.classList.add('hidden');
+            youtubeScreen.classList.add('hidden');
+            tiktokScreen.classList.add('hidden');
+            homeScreen.classList.remove('hidden');
+        }
+
+        let panelX = (window.innerWidth - 380) / 2;
+        let panelY = (window.innerHeight - 520) / 2;
         
         let isDragging = false;
         let dragOffsetX = 0;
@@ -136,44 +300,44 @@
         floatPanel.style.transform = `translate3d(${panelX}px, ${panelY}px, 0px) rotateX(0deg) rotateY(0deg)`;
 
         function onResults(results) {
-            canvasElement.width = videoElement.videoWidth || 640;
-            canvasElement.height = videoElement.videoHeight || 480;
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusDiv.innerText = "Mão Detetada [3D & Zero Lag] 🟢";
+                statusDiv.innerText = "Mão Detetada [Alinhamento Perfeito & Zero Lag] 🟢";
                 cursor.style.display = 'block';
 
                 const landmarks = results.multiHandLandmarks[0];
 
-                // Desenhar a malha visual bonita na mão
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(56, 189, 248, 0.5)', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
-
+                // CORREÇÃO DE ALINHAMENTO: Mapeamento exato ao rect real da câmara (object-fit: cover)
+                const videoRect = videoElement.getBoundingClientRect();
                 const indexTip = landmarks[8];
                 const thumbTip = landmarks[4];
 
-                const targetX = indexTip.x * window.innerWidth;
-                const targetY = indexTip.y * window.innerHeight;
+                drawAlignedLandmarks(canvasCtx, landmarks, videoRect);
 
-                // Fator de suavização de 0.85 para resposta instantânea (praticamente zero delay)
-                cursorX += (targetX - cursorX) * 0.85;
-                cursorY += (targetY - cursorY) * 0.85;
+                const targetX = videoRect.left + indexTip.x * videoRect.width;
+                const targetY = videoRect.top + indexTip.y * videoRect.height;
+
+                // ZERO DELAY ABSOLUTO: Atribuição direta sem interpolação
+                let cursorX = targetX;
+                let cursorY = targetY;
 
                 cursor.style.left = `${cursorX}px`;
                 cursor.style.top = `${cursorY}px`;
 
-                // Cálculo da rotação 3D real com base na posição do cursor em relação ao centro do ecrã
+                // Inclinação 3D espacial dinâmica
                 const centerX = window.innerWidth / 2;
                 const centerY = window.innerHeight / 2;
-                const tiltY = ((cursorX - centerX) / centerX) * 15; // Rotação Y
-                const tiltX = -((cursorY - centerY) / centerY) * 15; // Rotação X
+                const tiltY = ((cursorX - centerX) / centerX) * 12;
+                const tiltX = -((cursorY - centerY) / centerY) * 12;
 
                 const pinchDist = Math.hypot(
-                    (thumbTip.x - indexTip.x) * window.innerWidth,
-                    (thumbTip.y - indexTip.y) * window.innerHeight
+                    (thumbTip.x - indexTip.x) * videoRect.width,
+                    (thumbTip.y - indexTip.y) * videoRect.height
                 );
 
                 const headerRect = headerDrag.getBoundingClientRect();
@@ -182,34 +346,71 @@
                     cursorY >= headerRect.top && cursorY <= headerRect.bottom
                 );
 
-                if (pinchDist < 38) {
+                if (pinchDist < 42) {
                     cursor.classList.add('pinching');
                     if (isOverHeader || isDragging) {
                         if (!isDragging) {
                             isDragging = true;
                             dragOffsetX = cursorX - panelX;
                             dragOffsetY = cursorY - panelY;
+                            floatPanel.classList.add('dragging');
                         }
                         panelX = cursorX - dragOffsetX;
                         panelY = cursorY - dragOffsetY;
+                    } else {
+                        const elementUnder = document.elementFromPoint(cursorX, cursorY);
+                        if (elementUnder) {
+                            const clickable = elementUnder.closest('.interactive');
+                            if (clickable) {
+                                clickable.classList.add('hovered');
+                                setTimeout(() => clickable.click(), 60);
+                            }
+                        }
                     }
                 } else {
-                    cursor.classList.remove('pinching');
                     isDragging = false;
+                    floatPanel.classList.remove('dragging');
+                    cursor.classList.remove('pinching');
+                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
                 }
 
-                // Aplicar translação 3D e rotação espacial real em simultâneo
                 floatPanel.style.transform = `translate3d(${panelX}px, ${panelY}px, 0px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
 
             } else {
                 statusDiv.innerText = "Procurando mão no enquadramento... ✋";
                 cursor.style.display = 'none';
                 isDragging = false;
-                // Voltar à posição neutra em 3D quando tira a mão
+                floatPanel.classList.remove('dragging');
                 floatPanel.style.transform = `translate3d(${panelX}px, ${panelY}px, 0px) rotateX(0deg) rotateY(0deg)`;
             }
 
             canvasCtx.restore();
+        }
+
+        function drawAlignedLandmarks(ctx, landmarks, rect) {
+            const mappedPoints = landmarks.map(l => ({
+                x: rect.left + l.x * rect.width,
+                y: rect.top + l.y * rect.height,
+                z: l.z
+            }));
+
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+            ctx.lineWidth = 2.5;
+            for (const connection of HAND_CONNECTIONS) {
+                const p1 = mappedPoints[connection[0]];
+                const p2 = mappedPoints[connection[1]];
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+
+            for (const p of mappedPoints) {
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3.5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
         }
 
         const hands = new Hands({
@@ -219,8 +420,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 0,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
         });
 
         hands.onResults(onResults);
