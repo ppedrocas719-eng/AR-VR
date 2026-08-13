@@ -2,159 +2,218 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MR Browser Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Navegador MR Mobile</title>
     
-    <!-- Importando o MediaPipe Hands para o Hand Tracking -->
+    <!-- MediaPipe Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; }
 
-        /* Câmera do celular ao fundo (Efeito Passthrough) */
+        /* Câmera Fundo (Sem espelhamento, visão real traseira) */
         #webcam {
-            position: absolute;
-            top: 0; left: 0;
+            position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Espelha a câmera */
             z-index: 1;
         }
 
-        /* Canvas para desenhar o Hand Tracking limpo */
+        /* Canvas Rastreamento de Mão (Mesma proporção da câmera) */
         #output_canvas {
-            position: absolute;
-            top: 0; left: 0;
+            position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
             z-index: 2;
             pointer-events: none;
-            transform: scaleX(-1);
         }
 
-        /* Interface Flutuante Estilo VisionOS / EnjoyTheMR */
-        .mr-interface {
+        /* Janela Flutuante (Vidro) */
+        #floating-window {
             position: absolute;
-            top: 20%;
-            left: 50%;
-            transform: translate(-50%, 0);
-            width: 85%;
-            max-width: 400px;
-            background: rgba(20, 20, 30, 0.75);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 20px;
-            z-index: 3;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            color: white;
-            text-align: center;
-        }
-
-        .mr-interface h2 {
-            font-size: 1.1rem;
-            margin-bottom: 15px;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        }
-
-        /* Barra de Pesquisa do Google simulada */
-        .search-box {
-            display: flex;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 30px;
-            padding: 10px 15px;
-            align-items: center;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            margin-bottom: 15px;
-        }
-
-        .search-box input {
-            background: transparent;
-            border: none;
-            outline: none;
-            color: white;
-            font-size: 1rem;
-            width: 100%;
-            margin-left: 10px;
-        }
-
-        .search-box input::placeholder { color: rgba(255, 255, 255, 0.6); }
-
-        /* Dock de Aplicativos Flutuantes */
-        .dock {
-            display: flex;
-            justify-content: space-around;
+            top: 15%; left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 380px;
+            height: 480px;
+            
             background: rgba(255, 255, 255, 0.1);
-            padding: 10px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            touch-action: none;
         }
 
-        .dock-icon {
-            width: 45px; height: 45px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
+        /* Barra de Título (Arrastar) */
+        .window-header {
+            height: 40px;
+            background: rgba(0, 0, 0, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-            cursor: pointer;
-            transition: transform 0.2s;
+            cursor: grab;
+        }
+        .window-header:active { cursor: grabbing; }
+        .drag-bar {
+            width: 40px; height: 5px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 5px;
         }
 
-        .dock-icon:active { transform: scale(0.9); background: rgba(0, 255, 100, 0.4); }
+        /* Conteúdo da Janela */
+        .window-content {
+            flex: 1;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
 
-        /* Status de rastreamento */
-        #status {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.6);
-            color: #00ff66;
-            padding: 6px 15px;
+        .window-content h1 { font-size: 1.4rem; margin-bottom: 10px; font-weight: 600; }
+        .window-content p { font-size: 0.9rem; opacity: 0.7; margin-bottom: 20px; }
+
+        /* Pesquisa Google Simulada */
+        .google-search-bar {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            border-radius: 30px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .google-icon { width: 20px; height: 20px; margin-right: 10px; }
+        .search-text { font-size: 1rem; flex: 1; opacity: 0.8; }
+        .mic-icon { width: 15px; height: 15px; opacity: 0.5; }
+
+        /* Dock de Apps */
+        .app-dock {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0,0,0,0.2);
             border-radius: 20px;
-            font-size: 0.8rem;
+            padding: 15px;
+            margin-top: auto;
+        }
+        .app-icon {
+            width: 50px; height: 50px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem;
+            transition: background 0.2s;
+        }
+        .app-icon.hovered { background: rgba(66, 133, 244, 0.5); } 
+
+        /* Cursor da Mão */
+        #hand-cursor {
+            position: absolute;
+            width: 20px; height: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: transform 0.1s, background 0.1s;
+        }
+        #hand-cursor.clicking {
+            transform: scale(1.5);
+            background: rgba(66, 133, 244, 0.9);
+        }
+
+        /* Barra de Status */
+        #status {
+            position: absolute; bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 0.7rem;
             z-index: 3;
-            border: 1px solid rgba(0,255,100,0.3);
+            color: #00ff66;
         }
     </style>
 </head>
 <body>
 
-    <!-- Câmera Traseira -->
     <video id="webcam" autoplay playsinline muted></video>
-
-    <!-- Canvas do Rastreamento das Mãos -->
     <canvas id="output_canvas"></canvas>
+    <div id="hand-cursor"></div>
 
-    <!-- Tela Flutuante do Google / Workspace -->
-    <div class="mr-interface">
-        <h2>🌐 Google Realidade Mista</h2>
-        <div class="search-box">
-            <span>🔍</span>
-            <input type="text" id="searchInput" placeholder="Pesquisar na Web...">
+    <div id="floating-window">
+        <div class="window-header" id="header-bar">
+            <div class="drag-bar"></div>
         </div>
-        <div class="dock">
-            <div class="dock-icon" onclick="alert('Abrindo YouTube...')">📺</div>
-            <div class="dock-icon" onclick="alert('Abrindo Google...')">🌐</div>
-            <div class="dock-icon" onclick="alert('Abrindo Câmera...')">📷</div>
-            <div class="dock-icon" onclick="alert('Configurações...')">⚙️</div>
+        <div class="window-content">
+            <div>
+                <h1>Bem-vindo ao MR</h1>
+                <p>Navegue pela web com suas mãos. Aponte o dedo e use o movimento de pinça para clicar.</p>
+                
+                <div class="google-search-bar" id="search-btn">
+                    <img src="https://www.google.com/images/branding/googleg/2x/googleg_standard_color_92dp.png" class="google-icon" alt="Google">
+                    <span class="search-text">Pesquisar ou URL</span>
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/e8/Google_mic.svg" class="mic-icon" alt="Microfone">
+                </div>
+            </div>
+
+            <div class="app-dock">
+                <div class="app-icon" id="app-yt">📺</div>
+                <div class="app-icon" id="app-maps">🗺️</div>
+                <div class="app-icon" id="app-fotos">🖼️</div>
+                <div class="app-icon" id="app-config">⚙️</div>
+            </div>
         </div>
     </div>
 
-    <div id="status">Iniciando Câmera e Hand Tracking...</div>
+    <div id="status">Inicializando...</div>
 
     <script>
         const videoElement = document.getElementById('webcam');
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
-        const statusElement = document.getElementById('status');
+        const cursor = document.getElementById('hand-cursor');
+        const statusDiv = document.getElementById('status');
+        const floatWindow = document.getElementById('floating-window');
+        const headerBar = document.getElementById('header-bar');
+
+        let isDragging = false;
+        let grabX, grabY, winX, winY;
+
+        headerBar.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            const touch = e.touches[0];
+            grabX = touch.clientX;
+            grabY = touch.clientY;
+            const rect = floatWindow.getBoundingClientRect();
+            winX = rect.left;
+            winY = rect.top;
+            e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if(!isDragging) return;
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - grabX;
+            floatWindow.style.left = (winX + deltaX) + 'px';
+            floatWindow.style.top = (winY + (touch.clientY - grabY)) + 'px';
+            floatWindow.style.transform = 'none';
+        });
+
+        window.addEventListener('touchend', () => { isDragging = false; });
 
         function onResults(results) {
-            // Ajusta o tamanho do canvas para coincidir com o vídeo
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
 
@@ -162,52 +221,81 @@
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusElement.innerText = "Mão Detectada 🟢";
-                statusElement.style.color = "#00ff66";
+                statusDiv.innerText = "Mão Rastreada";
+                statusDiv.style.color = "#00ff66";
+                cursor.style.display = 'block';
 
-                for (const landmarks of results.multiHandLandmarks) {
-                    // Desenha conexões limpas e elegantes (Estilo a foto de referência)
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.7)', lineWidth: 2});
-                    drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 4});
+                const landmarks = results.multiHandLandmarks[0];
+                
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'white', lineWidth: 2});
+                drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 3});
+
+                const indexFinger = landmarks[8];
+                const thumb = landmarks[4];
+
+                // Mapeamento normalizado direto (sem inversão)
+                const x = indexFinger.x * window.innerWidth;
+                const y = indexFinger.y * window.innerHeight;
+
+                cursor.style.left = (x - (cursor.offsetWidth / 2)) + 'px';
+                cursor.style.top = (y - (cursor.offsetHeight / 2)) + 'px';
+
+                const dx = indexFinger.x - thumb.x;
+                const dy = indexFinger.y - thumb.y;
+                const dz = indexFinger.z - thumb.z;
+                const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+                if (distance < 0.07) {
+                    cursor.classList.add('clicking');
+                    
+                    const cursorRect = cursor.getBoundingClientRect();
+                    const cursorX = cursorRect.left + (cursorRect.width/2);
+                    const cursorY = cursorRect.top + (cursorRect.height/2);
+                    
+                    const elementUnder = document.elementFromPoint(cursorX, cursorY);
+                    if (elementUnder) {
+                        const clickable = elementUnder.closest('.google-search-bar, .app-icon');
+                        if(clickable) {
+                            clickable.classList.add('hovered');
+                            setTimeout(() => clickable.click(), 50);
+                        }
+                    }
+                } else {
+                    cursor.classList.remove('clicking');
+                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
                 }
+
             } else {
-                statusElement.innerText = "Mostre a mão para a câmera ✋";
-                statusElement.style.color = "#ffaa00";
+                statusDiv.innerText = "Aguardando mão...";
+                statusDiv.style.color = "#ffaa00";
+                cursor.style.display = 'none';
             }
+
             canvasCtx.restore();
         }
 
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
 
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
         });
 
         hands.onResults(onResults);
 
-        // Inicializa a câmera traseira do celular
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({image: videoElement});
             },
             width: 1280,
             height: 720,
-            facingMode: 'environment' // Usa a câmera traseira para o modo MR / VR Box
+            facingMode: 'environment'
         });
-
-        camera.start()
-            .then(() => {
-                statusElement.innerText = "Sistema MR Ativo 🚀";
-            })
-            .catch(err => {
-                statusElement.innerText = "Erro ao acessar a câmera!";
-                console.error(err);
-            });
+        camera.start();
     </script>
 </body>
 </html>
