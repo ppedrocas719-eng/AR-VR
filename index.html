@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MR Browser Mobile</title>
+    
+    <!-- Importando o MediaPipe Hands para o Hand Tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+
+        /* Câmera do celular ao fundo (Efeito Passthrough) */
+        #webcam {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Espelha a câmera */
+            z-index: 1;
+        }
+
+        /* Canvas para desenhar o Hand Tracking limpo */
+        #output_canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            transform: scaleX(-1);
+        }
+
+        /* Interface Flutuante Estilo VisionOS / EnjoyTheMR */
+        .mr-interface {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            width: 85%;
+            max-width: 400px;
+            background: rgba(20, 20, 30, 0.75);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            z-index: 3;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            color: white;
+            text-align: center;
+        }
+
+        .mr-interface h2 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        /* Barra de Pesquisa do Google simulada */
+        .search-box {
+            display: flex;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 30px;
+            padding: 10px 15px;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 15px;
+        }
+
+        .search-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 1rem;
+            width: 100%;
+            margin-left: 10px;
+        }
+
+        .search-box input::placeholder { color: rgba(255, 255, 255, 0.6); }
+
+        /* Dock de Aplicativos Flutuantes */
+        .dock {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .dock-icon {
+            width: 45px; height: 45px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .dock-icon:active { transform: scale(0.9); background: rgba(0, 255, 100, 0.4); }
+
+        /* Status de rastreamento */
+        #status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #00ff66;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            z-index: 3;
+            border: 1px solid rgba(0,255,100,0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Câmera Traseira -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- Canvas do Rastreamento das Mãos -->
+    <canvas id="output_canvas"></canvas>
+
+    <!-- Tela Flutuante do Google / Workspace -->
+    <div class="mr-interface">
+        <h2>🌐 Google Realidade Mista</h2>
+        <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="searchInput" placeholder="Pesquisar na Web...">
+        </div>
+        <div class="dock">
+            <div class="dock-icon" onclick="alert('Abrindo YouTube...')">📺</div>
+            <div class="dock-icon" onclick="alert('Abrindo Google...')">🌐</div>
+            <div class="dock-icon" onclick="alert('Abrindo Câmera...')">📷</div>
+            <div class="dock-icon" onclick="alert('Configurações...')">⚙️</div>
+        </div>
+    </div>
+
+    <div id="status">Iniciando Câmera e Hand Tracking...</div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusElement = document.getElementById('status');
+
+        function onResults(results) {
+            // Ajusta o tamanho do canvas para coincidir com o vídeo
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusElement.innerText = "Mão Detectada 🟢";
+                statusElement.style.color = "#00ff66";
+
+                for (const landmarks of results.multiHandLandmarks) {
+                    // Desenha conexões limpas e elegantes (Estilo a foto de referência)
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.7)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 4});
+                }
+            } else {
+                statusElement.innerText = "Mostre a mão para a câmera ✋";
+                statusElement.style.color = "#ffaa00";
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        // Inicializa a câmera traseira do celular
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720,
+            facingMode: 'environment' // Usa a câmera traseira para o modo MR / VR Box
+        });
+
+        camera.start()
+            .then(() => {
+                statusElement.innerText = "Sistema MR Ativo 🚀";
+            })
+            .catch(err => {
+                statusElement.innerText = "Erro ao acessar a câmera!";
+                console.error(err);
+            });
+    </script>
+</body>
+</html>
