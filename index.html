@@ -3,394 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MR Spatial OS - True 3D</title>
+    <title>MR Zero Delay</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: white; perspective: 1000px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; color: #fff; }
 
         #webcam {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: 1;
         }
 
-        #output_canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
+        #canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none;
         }
 
-        /* Contêiner com Perspetiva 3D Real */
-        .spatial-scene {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; align-items: center; justify-content: center;
-            z-index: 10; pointer-events: none;
-            transform-style: preserve-3d;
-        }
-
-        #floating-window {
+        /* Janela leve sem filtros pesados para evitar lag na GPU */
+        #panel {
             position: absolute;
-            width: 380px;
-            height: 500px;
-            background: rgba(18, 18, 28, 0.85);
-            backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px);
-            border: 1.5px solid rgba(255, 255, 255, 0.35);
-            border-radius: 32px;
-            box-shadow: 0 40px 90px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.3);
-            display: flex; flex-direction: column; overflow: hidden;
-            pointer-events: auto;
+            width: 340px;
+            height: 460px;
+            background: rgba(15, 15, 20, 0.92);
+            border: 2px solid rgba(56, 189, 248, 0.7);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             touch-action: none;
-            transform-style: preserve-3d;
-            transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg);
-            transition: box-shadow 0.2s, border-color 0.2s;
-        }
-        #floating-window.dragging {
-            box-shadow: 0 60px 120px rgba(0,0,0,0.95), 0 0 40px rgba(56, 189, 248, 0.6);
-            border-color: rgba(56, 189, 248, 0.9);
         }
 
-        .window-header {
-            height: 50px;
-            background: rgba(255, 255, 255, 0.08);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 18px; cursor: grab;
-        }
-        .window-header:active { cursor: grabbing; }
-        .window-title { font-size: 0.85rem; font-weight: 700; letter-spacing: 1.2px; opacity: 0.9; }
-        .drag-handle-bar { width: 45px; height: 5px; background: rgba(255,255,255,0.5); border-radius: 4px; }
-
-        .window-body {
-            flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden;
+        .header {
+            height: 48px;
+            background: rgba(56, 189, 248, 0.25);
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            cursor: grab;
         }
 
-        .screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
-            transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-        .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.95); display: none; }
-
-        .home-content h1 { font-size: 1.4rem; margin-bottom: 6px; font-weight: 700; }
-        .home-content p { font-size: 0.85rem; opacity: 0.8; margin-bottom: 20px; line-height: 1.4; }
-
-        .search-box {
-            display: flex; background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 20px; padding: 12px 16px; align-items: center; margin-bottom: 18px;
-        }
-        .search-box input {
-            background: transparent; border: none; outline: none; color: white; font-size: 0.95rem; width: 100%; margin-left: 10px;
-        }
-        .search-box input::placeholder { color: rgba(255,255,255,0.5); }
-
-        .app-dock { display: flex; justify-content: space-between; gap: 14px; }
-        .app-icon {
-            flex: 1; height: 80px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 20px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            cursor: pointer; transition: background 0.15s, transform 0.15s, border-color 0.15s;
-        }
-        .app-icon span { font-size: 0.7rem; margin-top: 6px; font-weight: 600; opacity: 0.95; }
-        .app-icon.hovered {
-            background: rgba(56, 189, 248, 0.35);
-            border-color: #38bdf8; transform: scale(1.08);
+        .content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        .internal-app-header {
-            background: rgba(255, 255, 255, 0.08); padding: 12px 16px;
-            display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        .back-btn {
-            background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.25);
-            color: white; padding: 6px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
-        }
-        .internal-app-title { font-size: 0.9rem; font-weight: 700; opacity: 0.95; }
-        
-        .internal-app-content {
-            flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+        .btn {
+            background: #38bdf8;
+            color: #000;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            cursor: pointer;
         }
 
-        .feed-card {
-            background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
-        }
-        .feed-card h3 { font-size: 0.95rem; color: #38bdf8; }
-        .feed-card p { font-size: 0.8rem; opacity: 0.75; }
-        .action-btn {
-            background: #38bdf8; color: #000; border: none; padding: 10px;
-            border-radius: 12px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: center;
+        #cursor {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: #38bdf8;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none;
+            box-shadow: 0 0 12px #38bdf8;
         }
 
-        #hand-cursor {
-            position: absolute; width: 22px; height: 22px;
-            background: rgba(56, 189, 248, 0.85); border: 2.5px solid #ffffff;
-            border-radius: 50%; z-index: 100; pointer-events: none; display: none;
-            box-shadow: 0 0 18px #38bdf8; transform: translate(-50%, -50%);
-        }
-        #hand-cursor.clicking {
+        #cursor.pinching {
+            background: #4ade80;
             transform: translate(-50%, -50%) scale(0.65);
-            background: rgba(74, 222, 128, 0.95); border-color: #4ade80;
-        }
-        #hand-cursor.grabbing {
-            transform: translate(-50%, -50%) scale(1.3);
-            background: rgba(251, 191, 36, 0.95); border-color: #fbbf24; box-shadow: 0 0 25px #fbbf24;
         }
 
         #status {
-            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.25);
-            padding: 6px 16px; border-radius: 20px; font-size: 0.75rem; z-index: 3; color: #00ff66;
-            backdrop-filter: blur(8px);
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            padding: 6px 14px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            z-index: 20;
+            color: #00ff66;
+            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
 <body>
 
     <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="output_canvas"></canvas>
-    <div id="hand-cursor"></div>
+    <canvas id="canvas"></canvas>
+    <div id="cursor"></div>
+    <div id="status">A inicializar motor rápido...</div>
 
-    <div class="spatial-scene">
-        <div id="floating-window">
-            <div class="window-header" id="header-bar">
-                <span class="window-title">MR SPATIAL 3D</span>
-                <div class="drag-handle-bar"></div>
-            </div>
-            <div class="window-body">
-                
-                <div id="home-screen" class="screen">
-                    <div class="home-content">
-                        <h1>Painel Espacial 3D</h1>
-                        <p>Faz pinça na barra superior para mover livremente pelo ar em 3D. O painel inclina-se na tua direção!</p>
-                        
-                        <div class="search-box">
-                            <span>🔍</span>
-                            <input type="text" id="search-input" placeholder="Pesquisar no Google 3D...">
-                        </div>
-                    </div>
-
-                    <div class="app-dock">
-                        <div class="app-icon interactive" onclick="openApp('google')">
-                            <span style="font-size: 1.5rem;">🌐</span>
-                            <span>Google</span>
-                        </div>
-                        <div class="app-icon interactive" onclick="openApp('youtube')">
-                            <span style="font-size: 1.5rem;">📺</span>
-                            <span>YouTube</span>
-                        </div>
-                        <div class="app-icon interactive" onclick="openApp('tiktok')">
-                            <span style="font-size: 1.5rem;">🎵</span>
-                            <span>TikTok</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="google-screen" class="screen hidden" style="padding: 0;">
-                    <div class="internal-app-header">
-                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-app-title">Google Search</span>
-                    </div>
-                    <div class="internal-app-content">
-                        <div class="feed-card">
-                            <h3>Resultados 3D</h3>
-                            <p id="google-query-text">A carregar resultados espaciais...</p>
-                            <button class="action-btn interactive" onclick="window.open('https://www.google.com', '_blank')">Abrir no Browser</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="youtube-screen" class="screen hidden" style="padding: 0;">
-                    <div class="internal-app-header">
-                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-app-title">YouTube Spatial Player</span>
-                    </div>
-                    <div class="internal-app-content">
-                        <div style="width:100%; height:190px; background:#000; border-radius:12px; overflow:hidden;">
-                            <iframe width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk" title="Lofi Girl" frameborder="0" allowfullscreen></iframe>
-                        </div>
-                        <div class="feed-card">
-                            <h3>Lofi Spatial Radio</h3>
-                            <p>A reproduzir nativamente em 3D.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tiktok-screen" class="screen hidden" style="padding: 0;">
-                    <div class="internal-app-header">
-                        <button class="back-btn interactive" onclick="goHome()">⬅ Voltar</button>
-                        <span class="internal-app-title">TikTok Spatial Feed</span>
-                    </div>
-                    <div class="internal-app-content">
-                        <div class="feed-card">
-                            <h3>🎵 Feed TikTok em MR</h3>
-                            <p>O TikTok bloqueia iframes nativos por segurança. Clica abaixo para abrir direto no browser externo:</p>
-                            <button class="action-btn interactive" onclick="window.open('https://www.tiktok.com', '_blank')">Abrir TikTok Oficial</button>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
+    <div id="panel" id="panel-box">
+        <div class="header" id="header">AGARRAR AQUI PARA MOVER</div>
+        <div class="content">
+            <h2>Painel Otimizado</h2>
+            <p>Usa pinça (polegar + indicador) na barra superior para arrastar o painel pelo ecrã sem atrasos.</p>
+            <button class="btn" onclick="alert('Botão funcional!')">Testar Ação</button>
         </div>
     </div>
 
-    <div id="status">A inicializar motor 3D Spatial...</div>
-
     <script>
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const cursor = document.getElementById('hand-cursor');
-        const statusDiv = document.getElementById('status');
-        const floatWindow = document.getElementById('floating-window');
-        const headerBar = document.getElementById('header-bar');
-        const searchInput = document.getElementById('search-input');
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.getElementById('cursor');
+        const panel = document.getElementById('panel');
+        const header = document.getElementById('header');
+        const status = document.getElementById('status');
 
-        const homeScreen = document.getElementById('home-screen');
-        const googleScreen = document.getElementById('google-screen');
-        const youtubeScreen = document.getElementById('youtube-screen');
-        const tiktokScreen = document.getElementById('tiktok-screen');
-        const googleQueryText = document.getElementById('google-query-text');
+        let cursorX = window.innerWidth / 2;
+        let cursorY = window.innerHeight / 2;
+        
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
 
-        function openApp(appName) {
-            homeScreen.classList.add('hidden');
-            googleScreen.classList.add('hidden');
-            youtubeScreen.classList.add('hidden');
-            tiktokScreen.classList.add('hidden');
-
-            if (appName === 'google') {
-                const term = searchInput.value.trim() || "Spatial Computing";
-                googleQueryText.innerText = `Resultados para: "${term}"`;
-                googleScreen.classList.remove('hidden');
-            } else if (appName === 'youtube') {
-                youtubeScreen.classList.remove('hidden');
-            } else if (appName === 'tiktok') {
-                tiktokScreen.classList.remove('hidden');
-            }
-        }
-
-        function goHome() {
-            googleScreen.classList.add('hidden');
-            youtubeScreen.classList.add('hidden');
-            tiktokScreen.classList.add('hidden');
-            homeScreen.classList.remove('hidden');
-        }
-
-        let winX = 0;
-        let winY = 0;
-        let targetWinX = 0;
-        let targetWinY = 0;
-        let tiltX = 0;
-        let tiltY = 0;
-
-        let smoothCursorX = window.innerWidth / 2;
-        let smoothCursorY = window.innerHeight / 2;
-        const smoothing = 0.45;
-
-        let isHandDraggingWindow = false;
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
+        // Posicionar a janela exatamente no centro inicial
+        let panelX = (window.innerWidth - 340) / 2;
+        let panelY = (window.innerHeight - 460) / 2;
+        panel.style.left = panelX + 'px';
+        panel.style.top = panelY + 'px';
 
         function onResults(results) {
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusDiv.innerText = `Mão Detetada [Motor 3D Ativo] 🟢`;
-                statusDiv.style.color = "#00ff66";
+                status.innerText = "Mão Detetada [Zero Lag] 🟢";
                 cursor.style.display = 'block';
 
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(56, 189, 248, 0.4)', lineWidth: 2});
-                    drawLandmarks(canvasCtx, landmarks, {color: '#38bdf8', lineWidth: 1, radius: 3});
-                }
-
-                const primaryHand = results.multiHandLandmarks[0];
-                const indexTip = primaryHand[8];
-                const thumbTip = primaryHand[4];
+                const landmarks = results.multiHandLandmarks[0];
+                const indexTip = landmarks[8];
+                const thumbTip = landmarks[4];
 
                 const targetX = indexTip.x * window.innerWidth;
                 const targetY = indexTip.y * window.innerHeight;
 
-                smoothCursorX += (targetX - smoothCursorX) * smoothing;
-                smoothCursorY += (targetY - smoothCursorY) * smoothing;
+                // Fator de suavização alto (0.75) para resposta imediata sem atraso percetível
+                cursorX += (targetX - cursorX) * 0.75;
+                cursorY += (targetY - cursorY) * 0.75;
 
-                cursor.style.left = `${smoothCursorX}px`;
-                cursor.style.top = `${smoothCursorY}px`;
+                cursor.style.left = cursorX + 'px';
+                cursor.style.top = cursorY + 'px';
 
-                // Efeito de perspetiva 3D inclinando o painel em direção ao cursor
-                const centerX = window.innerWidth / 2;
-                const centerY = window.innerHeight / 2;
-                tiltY = ((smoothCursorX - centerX) / centerX) * 12;
-                tiltX = -((smoothCursorY - centerY) / centerY) * 12;
-
-                const pinchDistance = Math.hypot(
+                const pinchDist = Math.hypot(
                     (thumbTip.x - indexTip.x) * window.innerWidth,
                     (thumbTip.y - indexTip.y) * window.innerHeight
                 );
 
-                const PINCH_LIMIT = 35;
-                const winRect = floatWindow.getBoundingClientRect();
+                const headerRect = header.getBoundingClientRect();
                 const isOverHeader = (
-                    smoothCursorX >= winRect.left && smoothCursorX <= winRect.right &&
-                    smoothCursorY >= winRect.top && smoothCursorY <= winRect.top + 60
+                    cursorX >= headerRect.left && cursorX <= headerRect.right &&
+                    cursorY >= headerRect.top && cursorY <= headerRect.bottom
                 );
 
-                if (pinchDistance < PINCH_LIMIT) {
-                    if (isOverHeader || isHandDraggingWindow) {
-                        if (!isHandDraggingWindow) {
-                            isHandDraggingWindow = true;
-                            dragOffsetX = smoothCursorX - (window.innerWidth / 2 + winX);
-                            dragOffsetY = smoothCursorY - (window.innerHeight / 2 + winY);
-                            floatWindow.classList.add('dragging');
+                if (pinchDist < 40) {
+                    cursor.classList.add('pinching');
+                    if (isOverHeader || isDragging) {
+                        if (!isDragging) {
+                            isDragging = true;
+                            const pRect = panel.getBoundingClientRect();
+                            offsetX = cursorX - pRect.left;
+                            offsetY = cursorY - pRect.top;
                         }
-                        cursor.classList.add('grabbing');
-                        targetWinX = smoothCursorX - dragOffsetX - (window.innerWidth / 2);
-                        targetWinY = smoothCursorY - dragOffsetY - (window.innerHeight / 2);
-                    } else {
-                        cursor.classList.add('clicking');
-                        isHandDraggingWindow = false;
-
-                        const elementUnder = document.elementFromPoint(smoothCursorX, smoothCursorY);
-                        if (elementUnder) {
-                            const clickable = elementUnder.closest('.interactive');
-                            if (clickable) {
-                                clickable.classList.add('hovered');
-                                setTimeout(() => clickable.click(), 100);
-                            }
-                        }
+                        panelX = cursorX - offsetX;
+                        panelY = cursorY - offsetY;
+                        panel.style.left = panelX + 'px';
+                        panel.style.top = panelY + 'px';
                     }
                 } else {
-                    isHandDraggingWindow = false;
-                    floatWindow.classList.remove('dragging');
-                    cursor.classList.remove('clicking');
-                    cursor.classList.remove('grabbing');
-                    document.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+                    cursor.classList.remove('pinching');
+                    isDragging = false;
                 }
-
             } else {
-                statusDiv.innerText = "A procurar mão no enquadramento... ✋";
-                statusDiv.style.color = "#ffaa00";
+                status.innerText = "Procurando mão no enquadramento... ✋";
                 cursor.style.display = 'none';
-                isHandDraggingWindow = false;
-                floatWindow.classList.remove('dragging');
-                tiltX = 0;
-                tiltY = 0;
+                isDragging = false;
             }
-
-            winX += (targetWinX - winX) * 0.2;
-            winY += (targetWinY - winY) * 0.2;
-
-            floatWindow.style.transform = `translate3d(${winX}px, ${winY}px, 0px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
-
-            canvasCtx.restore();
         }
 
         const hands = new Hands({
@@ -399,24 +213,24 @@
 
         hands.setOptions({
             maxNumHands: 1,
-            modelComplexity: 0,
-            minDetectionConfidence: 0.65,
-            minTrackingConfidence: 0.65
+            modelComplexity: 0, // Complexidade mínima para máxima velocidade e zero delay
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
         });
 
         hands.onResults(onResults);
 
-        const camera = new Camera(videoElement, {
+        const camera = new Camera(video, {
             onFrame: async () => {
-                await hands.send({image: videoElement});
+                await hands.send({image: video});
             },
             width: 640,
             height: 480,
             facingMode: 'environment'
         });
-        
+
         camera.start().catch(err => {
-            statusDiv.innerText = "Erro ao aceder à câmara!";
+            status.innerText = "Erro ao carregar câmara!";
             console.error(err);
         });
     </script>
